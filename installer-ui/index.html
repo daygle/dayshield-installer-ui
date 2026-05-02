@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DayShield Installer</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Alpine.js (bundled, no CDN) -->
+  <script src="alpine.min.js" defer></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col" x-data="installer()" x-init="init()">
+
+  <!-- ── Header ─────────────────────────────────────────────── -->
+  <header class="bg-shield-900 border-b border-shield-700 px-6 py-4 flex items-center gap-3">
+    <svg class="w-8 h-8 text-shield-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/>
+    </svg>
+    <div>
+      <h1 class="text-xl font-bold text-white tracking-wide">DayShield Firewall OS</h1>
+      <p class="text-xs text-shield-400">Installer — Offline Setup Utility</p>
+    </div>
+  </header>
+
+  <!-- ── Body (sidebar + main) ──────────────────────────────── -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-56 bg-gray-900 border-r border-gray-800 flex flex-col py-6 px-4 gap-1 shrink-0">
+      <template x-for="(s, i) in steps" :key="i">
+        <div class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors"
+             :class="stepClass(i)">
+          <span class="w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold shrink-0"
+                :class="stepBadgeClass(i)"
+                x-text="i + 1"></span>
+          <span class="text-sm font-medium" x-text="s.label"></span>
+        </div>
+      </template>
+    </aside>
+
+    <!-- Main content -->
+    <main class="flex-1 flex flex-col overflow-y-auto p-8">
+
+      <!-- Error banner -->
+      <div x-show="error" x-transition
+           class="mb-6 flex items-start gap-3 bg-red-900/60 border border-red-600 text-red-200 rounded-lg p-4">
+        <svg class="w-5 h-5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+        <div>
+          <p class="font-semibold text-sm">Error</p>
+          <p class="text-sm mt-0.5" x-text="error"></p>
+        </div>
+        <button @click="error = null" class="ml-auto text-red-300 hover:text-white transition-colors" aria-label="Dismiss">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- ── Step 0: Welcome ─────────────────────────────────── -->
+      <div x-show="step === 0" x-transition class="flex-1 flex flex-col justify-center items-center text-center max-w-2xl mx-auto">
+        <svg class="w-20 h-20 text-shield-400 mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/>
+        </svg>
+        <h2 class="text-3xl font-bold text-white mb-3">Welcome to DayShield</h2>
+        <p class="text-gray-400 text-lg mb-2">Firewall OS — Installer</p>
+        <p class="text-gray-500 text-sm mb-8 max-w-md">
+          This installer will guide you through setting up DayShield on your hardware.
+          All operations are performed locally — no internet connection is required.
+        </p>
+        <div class="bg-yellow-900/40 border border-yellow-700 rounded-lg p-4 text-left text-sm text-yellow-300 max-w-md w-full mb-8">
+          <p class="font-semibold mb-1">⚠ Warning</p>
+          <p>This process will <strong>erase all data</strong> on the selected disk. Ensure you have backed up any important data before continuing.</p>
+        </div>
+        <p class="text-gray-500 text-xs">Press <kbd class="bg-gray-800 px-2 py-0.5 rounded font-mono">Next</kbd> to begin</p>
+      </div>
+
+      <!-- ── Step 1: Disk Selection ──────────────────────────── -->
+      <div x-show="step === 1" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
+        <h2 class="text-2xl font-bold text-white mb-2">Select Installation Disk</h2>
+        <p class="text-gray-400 text-sm mb-6">Choose the disk where DayShield will be installed. All existing data will be erased.</p>
+
+        <div x-show="loadingDisks" class="flex items-center gap-3 text-gray-400 py-8">
+          <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <span>Detecting disks…</span>
+        </div>
+
+        <div x-show="!loadingDisks && disks.length === 0" class="text-gray-500 py-8 text-center">
+          <p>No suitable disks found.</p>
+          <button @click="loadDisks()" class="btn-secondary mt-4">Retry</button>
+        </div>
+
+        <div x-show="!loadingDisks && disks.length > 0" class="space-y-3">
+          <template x-for="disk in disks" :key="disk.name">
+            <button @click="selectedDisk = disk.name"
+                    class="w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left"
+                    :class="selectedDisk === disk.name
+                      ? 'border-shield-500 bg-shield-900/40'
+                      : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
+              <svg class="w-8 h-8 shrink-0"
+                   :class="selectedDisk === disk.name ? 'text-shield-400' : 'text-gray-500'"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M5 3h14a2 2 0 012 2v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2zM3 14h18M3 18h18"/>
+              </svg>
+              <div class="flex-1">
+                <p class="font-semibold text-white" x-text="'/dev/' + disk.name"></p>
+                <p class="text-sm text-gray-400" x-text="disk.size + '  —  ' + disk.type"></p>
+              </div>
+              <span x-show="selectedDisk === disk.name"
+                    class="text-shield-400">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"/>
+                </svg>
+              </span>
+            </button>
+          </template>
+        </div>
+
+        <div class="mt-4 flex justify-end">
+          <button @click="loadDisks()" class="btn-secondary text-sm">
+            <svg class="w-4 h-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Step 2: Partition Summary ──────────────────────── -->
+      <div x-show="step === 2" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
+        <h2 class="text-2xl font-bold text-white mb-2">Partitioning Summary</h2>
+        <p class="text-gray-400 text-sm mb-6">
+          The following partition layout will be created on <strong class="text-white" x-text="'/dev/' + selectedDisk"></strong>.
+        </p>
+
+        <div class="space-y-3 mb-6">
+          <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
+            <div class="w-10 h-10 rounded-lg bg-blue-900/50 flex items-center justify-center shrink-0">
+              <span class="text-blue-400 font-bold text-xs">EFI</span>
+            </div>
+            <div>
+              <p class="font-semibold text-white">EFI System Partition</p>
+              <p class="text-sm text-gray-400">512 MiB — FAT32 — <span x-text="'/dev/' + selectedDisk + '1'"></span></p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
+            <div class="w-10 h-10 rounded-lg bg-shield-900/50 flex items-center justify-center shrink-0">
+              <span class="text-shield-400 font-bold text-xs">ROOT</span>
+            </div>
+            <div>
+              <p class="font-semibold text-white">Root Partition</p>
+              <p class="text-sm text-gray-400">Remaining space — ext4 — <span x-text="'/dev/' + selectedDisk + '2'"></span></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-red-900/30 border border-red-700 rounded-lg p-4 text-sm text-red-300">
+          <p class="font-semibold mb-1">⚠ This will destroy all data on <span x-text="'/dev/' + selectedDisk"></span></p>
+          <p>Confirm you want to proceed by clicking <strong>Next</strong>.</p>
+        </div>
+      </div>
+
+      <!-- ── Step 3: Installation Progress ──────────────────── -->
+      <div x-show="step === 3" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
+        <h2 class="text-2xl font-bold text-white mb-2">Installing DayShield</h2>
+        <p class="text-gray-400 text-sm mb-8">Please wait while the system is installed. Do not power off your machine.</p>
+
+        <div class="space-y-4 mb-8">
+          <template x-for="task in installTasks" :key="task.id">
+            <div class="flex items-center gap-4">
+              <!-- Status icon -->
+              <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                   :class="{
+                     'bg-green-900/50 text-green-400': task.status === 'done',
+                     'bg-shield-900/50 text-shield-400': task.status === 'running',
+                     'bg-red-900/50 text-red-400': task.status === 'error',
+                     'bg-gray-800 text-gray-600': task.status === 'pending'
+                   }">
+                <!-- done -->
+                <svg x-show="task.status === 'done'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+                <!-- running -->
+                <svg x-show="task.status === 'running'" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <!-- error -->
+                <svg x-show="task.status === 'error'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                <!-- pending -->
+                <span x-show="task.status === 'pending'" class="w-2 h-2 rounded-full bg-gray-600"></span>
+              </div>
+              <div class="flex-1">
+                <p class="text-sm font-medium"
+                   :class="{
+                     'text-white': task.status === 'running',
+                     'text-green-400': task.status === 'done',
+                     'text-red-400': task.status === 'error',
+                     'text-gray-500': task.status === 'pending'
+                   }"
+                   x-text="task.label"></p>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Overall progress bar -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs text-gray-400">
+            <span>Overall progress</span>
+            <span x-text="progress + '%'"></span>
+          </div>
+          <div class="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-shield-600 to-shield-400 rounded-full transition-all duration-500"
+                 :style="'width: ' + progress + '%'"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Step 4: Configuration ───────────────────────────── -->
+      <div x-show="step === 4" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
+        <h2 class="text-2xl font-bold text-white mb-2">System Configuration</h2>
+        <p class="text-gray-400 text-sm mb-6">Configure the basic settings for your DayShield installation.</p>
+
+        <div class="space-y-5">
+
+          <!-- Hostname -->
+          <div>
+            <label for="hostname" class="block text-sm font-medium text-gray-300 mb-1">Hostname</label>
+            <input id="hostname" type="text" x-model="hostname" placeholder="dayshield"
+                   class="input-field" maxlength="63"
+                   pattern="[a-zA-Z0-9\-]+"
+                   autocomplete="off" spellcheck="false" />
+            <p class="text-xs text-gray-500 mt-1">Letters, numbers, and hyphens only. Max 63 characters.</p>
+          </div>
+
+          <!-- Admin Password -->
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-300 mb-1">Admin Password</label>
+            <input id="password" type="password" x-model="password" placeholder="••••••••"
+                   class="input-field" autocomplete="new-password" />
+          </div>
+          <div>
+            <label for="passwordConfirm" class="block text-sm font-medium text-gray-300 mb-1">Confirm Password</label>
+            <input id="passwordConfirm" type="password" x-model="passwordConfirm" placeholder="••••••••"
+                   class="input-field" autocomplete="new-password" />
+            <p x-show="password && passwordConfirm && password !== passwordConfirm"
+               class="text-xs text-red-400 mt-1">Passwords do not match.</p>
+          </div>
+
+          <!-- LAN Interface -->
+          <div>
+            <label for="iface" class="block text-sm font-medium text-gray-300 mb-1">LAN Interface</label>
+            <div x-show="loadingIfaces" class="text-sm text-gray-500">Detecting interfaces…</div>
+            <select id="iface" x-show="!loadingIfaces" x-model="iface" class="input-field">
+              <option value="" disabled>Select an interface</option>
+              <template x-for="i in ifaces" :key="i">
+                <option :value="i" x-text="i"></option>
+              </template>
+            </select>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Step 5: Summary ────────────────────────────────── -->
+      <div x-show="step === 5" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
+        <h2 class="text-2xl font-bold text-white mb-2">Installation Summary</h2>
+        <p class="text-gray-400 text-sm mb-6">Review your configuration before finalizing.</p>
+
+        <div class="space-y-3">
+          <div class="summary-row">
+            <span class="summary-label">Target disk</span>
+            <span class="summary-value" x-text="'/dev/' + selectedDisk"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Hostname</span>
+            <span class="summary-value" x-text="hostname || '(not set)'"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Admin password</span>
+            <span class="summary-value">••••••••</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">LAN interface</span>
+            <span class="summary-value" x-text="iface || '(not set)'"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">EFI partition</span>
+            <span class="summary-value" x-text="'/dev/' + selectedDisk + '1  (FAT32, 512 MiB)'"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Root partition</span>
+            <span class="summary-value" x-text="'/dev/' + selectedDisk + '2  (ext4, remaining)'"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Bootloader</span>
+            <span class="summary-value">GRUB (BIOS + UEFI)</span>
+          </div>
+        </div>
+
+        <div class="mt-6 bg-shield-900/30 border border-shield-700 rounded-lg p-4 text-sm text-shield-300">
+          <p>Click <strong>Install</strong> to begin the installation. This cannot be undone.</p>
+        </div>
+      </div>
+
+      <!-- ── Step 6: Configuring System (post-install) ──────── -->
+      <div x-show="step === 6" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
+        <h2 class="text-2xl font-bold text-white mb-2">Configuring System</h2>
+        <p class="text-gray-400 text-sm mb-8">Applying your settings and finalizing the installation…</p>
+
+        <div class="space-y-4 mb-8">
+          <template x-for="task in configTasks" :key="task.id">
+            <div class="flex items-center gap-4">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                   :class="{
+                     'bg-green-900/50 text-green-400': task.status === 'done',
+                     'bg-shield-900/50 text-shield-400': task.status === 'running',
+                     'bg-red-900/50 text-red-400': task.status === 'error',
+                     'bg-gray-800 text-gray-600': task.status === 'pending'
+                   }">
+                <svg x-show="task.status === 'done'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+                <svg x-show="task.status === 'running'" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <svg x-show="task.status === 'error'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                <span x-show="task.status === 'pending'" class="w-2 h-2 rounded-full bg-gray-600"></span>
+              </div>
+              <p class="text-sm font-medium"
+                 :class="{
+                   'text-white': task.status === 'running',
+                   'text-green-400': task.status === 'done',
+                   'text-red-400': task.status === 'error',
+                   'text-gray-500': task.status === 'pending'
+                 }"
+                 x-text="task.label"></p>
+            </div>
+          </template>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs text-gray-400">
+            <span>Finalizing…</span>
+            <span x-text="configProgress + '%'"></span>
+          </div>
+          <div class="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-green-700 to-green-400 rounded-full transition-all duration-500"
+                 :style="'width: ' + configProgress + '%'"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Step 7: Complete / Reboot ─────────────────────── -->
+      <div x-show="step === 7" x-transition class="flex-1 flex flex-col justify-center items-center text-center max-w-2xl mx-auto">
+        <div class="w-20 h-20 rounded-full bg-green-900/40 flex items-center justify-center mb-6">
+          <svg class="w-10 h-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+        </div>
+        <h2 class="text-3xl font-bold text-white mb-3">Installation Complete</h2>
+        <p class="text-gray-400 mb-2">DayShield has been successfully installed on <strong class="text-white" x-text="'/dev/' + selectedDisk"></strong>.</p>
+        <p class="text-gray-500 text-sm mb-8">Remove the installation media and reboot to start using DayShield.</p>
+        <button @click="reboot()" class="btn-primary btn-lg gap-2">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Reboot Now
+        </button>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ── Footer ────────────────────────────────────────────── -->
+  <footer class="bg-gray-900 border-t border-gray-800 px-6 py-4 flex items-center justify-between">
+    <div class="text-xs text-gray-600">DayShield OS Installer v1.0 — Offline</div>
+
+    <div class="flex gap-3">
+      <!-- Back button -->
+      <button @click="back()"
+              x-show="step > 0 && step < 7 && !installing"
+              :disabled="step === 0"
+              class="btn-secondary">
+        <svg class="w-4 h-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+        Back
+      </button>
+
+      <!-- Next / action button -->
+      <button @click="next()"
+              x-show="step < 7 && !installing"
+              :disabled="!canProceed()"
+              class="btn-primary"
+              x-text="nextLabel()">
+      </button>
+
+      <!-- Installing indicator -->
+      <div x-show="installing" class="flex items-center gap-2 text-shield-300 text-sm">
+        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        Working…
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

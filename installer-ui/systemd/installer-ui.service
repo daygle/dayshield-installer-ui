@@ -1,0 +1,54 @@
+[Unit]
+Description=DayShield Installer UI (tty1 console launcher)
+Documentation=https://github.com/daygle/dayshield-installer-ui
+After=multi-user.target systemd-udev-settle.service
+Wants=installer-ui-web.service
+Conflicts=getty@tty1.service
+
+[Service]
+# Run on tty1 (physical console)
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+StandardInput=tty
+StandardOutput=tty
+StandardError=journal
+
+# Run as root so shell scripts can partition/format disks
+User=root
+Group=root
+
+# Try a lightweight graphical browser first (surf, midori, epiphany-browser),
+# then fall back to the w3m text browser pointed at the local web UI.
+# If none are available, print a message directing the user to the web UI.
+ExecStart=/bin/sh -c '\
+  URL="http://127.0.0.1:8080/"; \
+  if command -v surf >/dev/null 2>&1; then \
+    exec surf "$URL"; \
+  elif command -v midori >/dev/null 2>&1; then \
+    exec midori "$URL"; \
+  elif command -v w3m >/dev/null 2>&1; then \
+    exec w3m "$URL"; \
+  elif command -v links >/dev/null 2>&1; then \
+    exec links "$URL"; \
+  elif command -v lynx >/dev/null 2>&1; then \
+    exec lynx "$URL"; \
+  else \
+    printf "\n\n  DayShield Installer\n"; \
+    printf "  ──────────────────\n"; \
+    printf "  Open a browser and navigate to:\n"; \
+    printf "  http://127.0.0.1:8080/\n\n"; \
+    printf "  (No supported browser found on this system)\n\n"; \
+    sleep infinity; \
+  fi'
+
+# Restart if the browser exits unexpectedly
+Restart=on-failure
+RestartSec=3s
+
+# Resource limits appropriate for a live installer
+MemoryMax=512M
+CPUWeight=50
+
+[Install]
+WantedBy=multi-user.target
