@@ -1,0 +1,125 @@
+#!/bin/sh
+# install-bootloader.sh — Install GRUB for both BIOS (MBR) and UEFI targets
+# Query string params: disk=<name>   (e.g. disk=sda)
+# Output: JSON  { "ok": true } | { "error": "message" }
+#
+# Assumes install-rootfs.sh has already run and /mnt/target is mounted.
+# Installs:
+#   - grub-install --target=i386-pc       (BIOS/CSM)
+#   - grub-install --target=x86_64-efi    (UEFI)
+#   - grub-mkconfig  →  /boot/grub/grub.cfg
+#
+# Must be POSIX-compliant and run as root.
+
+set -eu
+
+printf 'Content-Type: application/json\r\n'
+printf '\r\n'
+
+# ── Parse CGI query string ────────────────────────────────────────
+DISK=""
+if [ -n "${QUERY_STRING:-}" ]; then
+  DISK=$(printf '%s' "$QUERY_STRING" | sed 's/.*disk=\([^&]*\).*/\1/' | sed 's/%2F/\//g')
+fi
+
+if [ -z "$DISK" ]; then
+  printf '{"error":"Missing required parameter: disk"}\n'
+  exit 1
+fi
+
+DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+DEV="/dev/${DISK}"
+TARGET="/mnt/target"
+
+# ── Validate ──────────────────────────────────────────────────────
+if [ ! -b "$DEV" ]; then
+  printf '{"error":"Device not found: %s"}\n' "$DEV"
+  exit 1
+fi
+
+if [ ! -d "${TARGET}/etc" ]; then
+  printf '{"error":"Target root not found at %s — run install-rootfs first"}\n' "$TARGET"
+  exit 1
+fi
+
+if ! command -v grub-install >/dev/null 2>&1; then
+  printf '{"error":"grub-install not found"}\n'
+  exit 1
+fi
+
+# ── Bind-mount pseudo-filesystems for chroot ─────────────────────
+for fs in proc sys dev dev/pts; do
+  mkdir -p "${TARGET}/${fs}"
+  mount --bind "/${fs}" "${TARGET}/${fs}" >/dev/null 2>&1 || true
+done
+
+cleanup() {
+  for fs in dev/pts dev sys proc; do
+    umount "${TARGET}/${fs}" 2>/dev/null || true
+  done
+}
+trap cleanup EXIT
+
+# ── Install GRUB — BIOS (i386-pc) ────────────────────────────────
+if [ -d "${TARGET}/usr/lib/grub/i386-pc" ] || \
+   [ -d "/usr/lib/grub/i386-pc" ]; then
+  if ! grub-install \
+        --target=i386-pc \
+        --boot-directory="${TARGET}/boot" \
+        --recheck \
+        "$DEV" >/dev/null 2>&1; then
+    printf '{"error":"BIOS grub-install failed on %s"}\n' "$DEV"
+    exit 1
+  fi
+fi
+
+# ── Install GRUB — UEFI (x86_64-efi) ────────────────────────────
+EFI_DIR="${TARGET}/boot/efi"
+if [ -d "${TARGET}/usr/lib/grub/x86_64-efi" ] || \
+   [ -d "/usr/lib/grub/x86_64-efi" ]; then
+  if ! grub-install \
+        --target=x86_64-efi \
+        --efi-directory="$EFI_DIR" \
+        --boot-directory="${TARGET}/boot" \
+        --bootloader-id="DayShield" \
+        --recheck \
+        >/dev/null 2>&1; then
+    printf '{"error":"UEFI grub-install failed"}\n'
+    exit 1
+  fi
+fi
+
+# ── Generate grub.cfg ─────────────────────────────────────────────
+# Prefer chroot grub-mkconfig; fall back to host grub-mkconfig
+GRUB_CFG="${TARGET}/boot/grub/grub.cfg"
+mkdir -p "${TARGET}/boot/grub"
+
+if [ -x "${TARGET}/usr/sbin/grub-mkconfig" ] || \
+   [ -x "${TARGET}/usr/bin/grub-mkconfig" ]; then
+  chroot "$TARGET" grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 || true
+elif command -v grub-mkconfig >/dev/null 2>&1; then
+  GRUB_DEVICE="$DEV" \
+  GRUB_DEVICE_BOOT="$DEV" \
+  grub-mkconfig -o "$GRUB_CFG" >/dev/null 2>&1 || true
+fi
+
+# ── Write minimal fallback grub.cfg if missing ───────────────────
+if [ ! -s "$GRUB_CFG" ]; then
+  ROOT_UUID=$(blkid -s UUID -o value "/dev/${DISK}2" 2>/dev/null || true)
+  cat > "$GRUB_CFG" << GRUBCFG
+set default=0
+set timeout=5
+
+menuentry "DayShield Firewall OS" {
+  search --no-floppy --label --set=root dayshield-root
+  linux  /boot/vmlinuz root=LABEL=dayshield-root rw quiet
+  initrd /boot/initrd.img
+}
+GRUBCFG
+  if [ -n "$ROOT_UUID" ]; then
+    # Replace label with UUID for more reliable boot
+    sed -i "s|LABEL=dayshield-root|UUID=${ROOT_UUID}|g" "$GRUB_CFG"
+  fi
+fi
+
+printf '{"ok":true}\n'
