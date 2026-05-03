@@ -2,7 +2,7 @@
 
 A minimal, offline, deterministic installer UI for **DayShield Firewall OS**.
 
-Runs on `tty1` (physical console) and optionally as a local web UI at `http://127.0.0.1:8080`.
+Runs on `tty1` (physical console) and is served by busybox httpd on `0.0.0.0:8080` inside the live environment.
 
 ## Stack
 
@@ -37,8 +37,8 @@ installer-ui/
 │   ├── finalize.sh          # Unmount, sync, clean temp files
 │   └── reboot.sh            # systemctl reboot
 └── systemd/
-    ├── installer-ui.service     # tty1 launcher (browser or text fallback)
-    └── installer-ui-web.service # busybox httpd on 127.0.0.1:8080
+   ├── installer-ui.service     # tty1 launcher (JS-capable browser order + remote-access hint)
+   └── installer-ui-web.service # busybox httpd on 0.0.0.0:8080
 ```
 
 ---
@@ -249,11 +249,17 @@ Both service units carry `ConditionKernelCommandLine=installer` so they are
 
 ## Security Notes
 
-- The web UI listens on `127.0.0.1:8080` **only** (loopback).
+- The web UI listens on `0.0.0.0:8080` in the live installer environment.
 - Scripts run as root on the live ISO — this is required for disk operations.
 - Passwords are hashed with SHA-512 (openssl passwd -6) before writing to `/etc/shadow`.
 - No external network connections are made during installation.
 - The installer service is intended to be disabled or removed from the installed system; it only runs on the live ISO.
+
+## Runtime Notes
+
+- `installer-ui.service` tries `epiphany-browser`, `firefox`, `chromium`, `surf`, then `midori`.
+- If none are installed, it prints LAN URL hints on tty1 and keeps running.
+- Both installer services are gated by `ConditionKernelCommandLine=installer`, so they are skipped on installed systems.
 
 ---
 
