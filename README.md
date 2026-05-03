@@ -1,4 +1,4 @@
-# DayShield Installer UI
+﻿# DayShield Installer UI
 
 Offline installer interface for **DayShield Firewall OS**, used by the live ISO.
 
@@ -20,3 +20,18 @@ make iso \
 ## Full docs
 
 See [installer-ui/README.md](installer-ui/README.md) for API, service, and runtime details.
+
+## Offline prerequisites
+
+Before ISO build, ensure these files exist in installer-ui/:
+
+- alpine.min.js
+- tailwind.min.js
+
+If missing, fetch them once:
+
+```sh
+curl -Lo installer-ui/alpine.min.js "https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"
+curl -Lo installer-ui/tailwind.min.js "https://cdn.tailwindcss.com"
+```
+
