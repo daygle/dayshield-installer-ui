@@ -19,26 +19,25 @@ StandardError=journal
 User=root
 Group=root
 
-# Try a lightweight graphical browser first (surf, midori, epiphany-browser),
-# then fall back to the w3m text browser pointed at the local web UI.
-# If none are available, print a message directing the user to the web UI.
+# Try a JS-capable browser first. If none are available, print a message
+# directing the user to open the web UI from another machine.
 ExecStart=/bin/sh -c '\
   URL="http://127.0.0.1:8080/"; \
   IPS="$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | tr "\n" " ")"; \
-  if command -v surf >/dev/null 2>&1; then \
+  if command -v epiphany-browser >/dev/null 2>&1; then \
+    exec epiphany-browser "$URL"; \
+  elif command -v firefox >/dev/null 2>&1; then \
+    exec firefox "$URL"; \
+  elif command -v chromium >/dev/null 2>&1; then \
+    exec chromium "$URL"; \
+  elif command -v surf >/dev/null 2>&1; then \
     exec surf "$URL"; \
   elif command -v midori >/dev/null 2>&1; then \
     exec midori "$URL"; \
-  elif command -v w3m >/dev/null 2>&1; then \
-    exec w3m "$URL"; \
-  elif command -v links >/dev/null 2>&1; then \
-    exec links "$URL"; \
-  elif command -v lynx >/dev/null 2>&1; then \
-    exec lynx "$URL"; \
   else \
     printf "\n\n  DayShield Installer\n"; \
     printf "  ──────────────────\n"; \
-    printf "  Web UI is running on port 8080.\n\n"; \
+    printf "  Web UI is running on port 8080 and requires a JavaScript-capable browser.\n\n"; \
     if [ -n "$IPS" ]; then \
       printf "  Open from another machine using:\n"; \
       for ip in $IPS; do printf "    http://%s:8080/\n" "$ip"; done; \
@@ -48,7 +47,7 @@ ExecStart=/bin/sh -c '\
       printf "  Complete the console wizard network step first, then use:\n"; \
       printf "    http://<LAN_IP>:8080/\n\n"; \
     fi; \
-    printf "  (No supported browser found on this system)\n\n"; \
+    printf "  (No supported JavaScript-capable browser found on this system)\n\n"; \
     sleep infinity; \
   fi'
 

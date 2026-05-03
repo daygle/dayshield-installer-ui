@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DayShield Installer</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- Load app first so installer() exists before Alpine initializes -->
+  <script src="app.js" defer></script>
   <!-- Alpine.js (bundled, no CDN) -->
   <script src="alpine.min.js" defer></script>
-  <script src="app.js" defer></script>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col" x-data="installer()" x-init="init()">
 
