@@ -24,6 +24,7 @@ Group=root
 # If none are available, print a message directing the user to the web UI.
 ExecStart=/bin/sh -c '\
   URL="http://127.0.0.1:8080/"; \
+  IPS="$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | tr "\n" " ")"; \
   if command -v surf >/dev/null 2>&1; then \
     exec surf "$URL"; \
   elif command -v midori >/dev/null 2>&1; then \
@@ -37,8 +38,16 @@ ExecStart=/bin/sh -c '\
   else \
     printf "\n\n  DayShield Installer\n"; \
     printf "  ──────────────────\n"; \
-    printf "  Open a browser and navigate to:\n"; \
-    printf "  http://127.0.0.1:8080/\n\n"; \
+    printf "  Web UI is running on port 8080.\n\n"; \
+    if [ -n "$IPS" ]; then \
+      printf "  Open from another machine using:\n"; \
+      for ip in $IPS; do printf "    http://%s:8080/\n" "$ip"; done; \
+      printf "\n"; \
+    else \
+      printf "  No LAN IPv4 address detected yet.\n"; \
+      printf "  Complete the console wizard network step first, then use:\n"; \
+      printf "    http://<LAN_IP>:8080/\n\n"; \
+    fi; \
     printf "  (No supported browser found on this system)\n\n"; \
     sleep infinity; \
   fi'

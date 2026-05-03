@@ -1,5 +1,5 @@
 [Unit]
-Description=DayShield Installer Web UI (busybox httpd on 127.0.0.1:8080)
+Description=DayShield Installer Web UI (busybox httpd on port 8080)
 Documentation=https://github.com/daygle/dayshield-installer-ui
 After=network.target
 Before=installer-ui.service
@@ -17,9 +17,9 @@ WorkingDirectory=/installer-ui
 
 ExecStart=/bin/sh -c '\
   if command -v busybox >/dev/null 2>&1 && busybox httpd --help >/dev/null 2>&1; then \
-    exec busybox httpd -f -p 127.0.0.1:8080 -h /installer-ui -c /installer-ui/httpd.conf; \
+    exec busybox httpd -f -p 0.0.0.0:8080 -h /installer-ui -c /installer-ui/httpd.conf; \
   elif command -v python3 >/dev/null 2>&1; then \
-    exec python3 -m http.server 8080 --bind 127.0.0.1 --directory /installer-ui; \
+    exec python3 -m http.server 8080 --bind 0.0.0.0 --directory /installer-ui; \
   elif command -v python >/dev/null 2>&1; then \
     cd /installer-ui && exec python -m SimpleHTTPServer 8080; \
   else \
@@ -30,9 +30,7 @@ ExecStart=/bin/sh -c '\
 Restart=on-failure
 RestartSec=2s
 
-# Only accept local connections (enforced at service level too)
-IPAddressAllow=127.0.0.1/8
-IPAddressDeny=any
+# Allow LAN/browser access from installer clients.
 
 # Security hardening — installer scripts still need to run as root
 # but we restrict the file-system exposure as much as possible
