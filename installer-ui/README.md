@@ -31,7 +31,7 @@ installer-ui/
 │   ├── detect-ifaces.sh     # List network interfaces → JSON
 │   ├── partition.sh         # GPT + EFI + root partition creation
 │   ├── format.sh            # FAT32 EFI + ext4 root formatting
-│   ├── install-rootfs.sh    # Mount + extract /run/installer/rootfs.tar.zst
+│   ├── install-rootfs.sh    # Mount + extract rootfs.tar.zst (auto-discovered from ISO)
 │   ├── install-bootloader.sh# GRUB BIOS + UEFI install
 │   ├── configure-system.sh  # Hostname, password, network, fstab, services
 │   ├── finalize.sh          # Unmount, sync, clean temp files
@@ -70,13 +70,26 @@ Every script:
 ### Offline Operation
 
 No external resources are fetched at install time.  The only file that must be
-present on the ISO but is not committed here is:
+present before the ISO build is:
 
 | File | Description |
 |------|-------------|
-| `/installer-ui/alpine.min.js` | Alpine.js bundle (copy from CDN before ISO build) |
-| `/run/installer/rootfs.tar.zst` | DayShield root filesystem archive |
-| `/run/installer/defaults/` | Optional `/etc/dayshield` overlay files |
+| `installer-ui/alpine.min.js` | Alpine.js bundle — copy from CDN once (see below) |
+
+The `rootfs.tar.zst` archive is **embedded on the ISO** at
+`/installer/rootfs.tar.zst` by the `assemble-iso.sh` step when
+`--rootfs` is passed to `build-iso.sh`.  The installer's `install-rootfs.sh`
+automatically locates it from the live-boot mount point
+(`/lib/live/mount/medium/installer/rootfs.tar.zst` or
+`/run/live/medium/installer/rootfs.tar.zst`), falling back to a `blkid` scan
+for the `DAYSHIELD`-labelled block device.
+
+**Fetching the Alpine.js bundle** (run once before building the ISO):
+
+```bash
+curl -Lo installer-ui/alpine.min.js \
+  "https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"
+```
 
 ---
 
@@ -161,34 +174,32 @@ QUERY_STRING="disk=sdb" sh installer-ui/api/format.sh
 
 ## Integrating with the ISO Builder
 
-Add the following to your ISO build script after rootfs extraction:
+Use the `--installer-ui` flag in `dayshield-iso`.  This single flag handles
+everything: copying web UI files into the live rootfs, installing systemd units,
+enabling services, and placing the installer UI directory on the ISO.
 
 ```bash
-# Copy installer UI
-cp -r installer-ui/         "${ISO_ROOT}/installer-ui/"
-chmod +x "${ISO_ROOT}/installer-ui/api/"*.sh
+# From the dayshield-iso repository
+bash scripts/build-iso.sh \
+    --rootfs       ../dayshield-rootfs/rootfs.tar.zst \
+    --installer-ui ../dayshield-installer-ui/installer-ui \
+    --output       dayshield.iso
 
-# Copy rootfs archive
-cp rootfs.tar.zst           "${ISO_ROOT}/run/installer/rootfs.tar.zst"
-
-# Copy /etc/dayshield defaults (optional)
-cp -r defaults/             "${ISO_ROOT}/run/installer/defaults/"
-
-# Install Alpine.js bundle (download once during ISO build)
-curl -Lo "${ISO_ROOT}/installer-ui/alpine.min.js" \
-  "https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"
-
-# Install systemd units
-cp installer-ui/systemd/installer-ui.service \
-   installer-ui/systemd/installer-ui-web.service \
-   "${ISO_ROOT}/etc/systemd/system/"
-
-# Enable services
-ln -sf /etc/systemd/system/installer-ui.service \
-       "${ISO_ROOT}/etc/systemd/system/multi-user.target.wants/"
-ln -sf /etc/systemd/system/installer-ui-web.service \
-       "${ISO_ROOT}/etc/systemd/system/multi-user.target.wants/"
+# Or with make:
+make iso \
+    ROOTFS=../dayshield-rootfs/rootfs.tar.zst \
+    INSTALLER_UI=../dayshield-installer-ui/installer-ui
 ```
+
+Behind the scenes, `inject-installer-ui.sh` runs after rootfs extraction but
+before squashfs build and:
+
+1. Copies `installer-ui/` → `build/rootfs/installer-ui/` (served by busybox httpd)
+2. Installs `systemd/installer-ui*.service` → `build/rootfs/etc/systemd/system/`
+3. Creates `multi-user.target.wants/` symlinks so the services are enabled
+
+Both service units carry `ConditionKernelCommandLine=installer` so they are
+**silently skipped** on the installed system even if the unit files are present.
 
 ---
 

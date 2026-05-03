@@ -35,8 +35,47 @@ ROOT_PART="/dev/${DISK}2"
 case "$DISK" in nvme*|mmcblk*) EFI_PART="/dev/${DISK}p1"; ROOT_PART="/dev/${DISK}p2" ;; esac
 
 TARGET="/mnt/target"
-ROOTFS="/run/installer/rootfs.tar.zst"
 DEFAULTS_DIR="/run/installer/defaults"
+
+# ── Locate rootfs archive ─────────────────────────────────────────
+# Search in priority order:
+#   1. Pre-staged at /run/installer/ (explicit setup by admin)
+#   2. On the live medium mounted by live-boot (Debian)
+#   3. On the live medium mounted by dracut dmsquash-live
+#   4. By scanning for a block device with the DAYSHIELD label
+find_rootfs() {
+  for candidate in \
+    "/run/installer/rootfs.tar.zst" \
+    "/lib/live/mount/medium/installer/rootfs.tar.zst" \
+    "/run/live/medium/installer/rootfs.tar.zst" \
+    "/media/cdrom/installer/rootfs.tar.zst" \
+    "/media/live/installer/rootfs.tar.zst"
+  do
+    [ -f "$candidate" ] && printf '%s' "$candidate" && return 0
+  done
+
+  # Last resort: scan block devices for the DAYSHIELD label and mount it
+  _dev=$(blkid -t LABEL=DAYSHIELD -o device 2>/dev/null | head -n1)
+  if [ -n "$_dev" ]; then
+    _mp=$(mktemp -d)
+    if mount -o ro "$_dev" "$_mp" 2>/dev/null; then
+      if [ -f "${_mp}/installer/rootfs.tar.zst" ]; then
+        # Copy to RAM so we can unmount the ISO
+        cp "${_mp}/installer/rootfs.tar.zst" /tmp/rootfs.tar.zst
+        umount "$_mp" 2>/dev/null || true
+        rmdir "$_mp" 2>/dev/null || true
+        printf '%s' "/tmp/rootfs.tar.zst"
+        return 0
+      fi
+      umount "$_mp" 2>/dev/null || true
+    fi
+    rmdir "$_mp" 2>/dev/null || true
+  fi
+
+  return 1
+}
+
+ROOTFS=$(find_rootfs || true)
 
 # ── Validate ──────────────────────────────────────────────────────
 for part in "$EFI_PART" "$ROOT_PART"; do
@@ -46,8 +85,8 @@ for part in "$EFI_PART" "$ROOT_PART"; do
   fi
 done
 
-if [ ! -f "$ROOTFS" ]; then
-  printf '{"error":"rootfs archive not found: %s"}\n' "$ROOTFS"
+if [ -z "$ROOTFS" ] || [ ! -f "$ROOTFS" ]; then
+  printf '{"error":"rootfs archive not found; ensure the ISO was built with --installer-ui and contains /installer/rootfs.tar.zst"}\n'
   exit 1
 fi
 

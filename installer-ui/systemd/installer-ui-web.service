@@ -3,6 +3,7 @@ Description=DayShield Installer Web UI (busybox httpd on 127.0.0.1:8080)
 Documentation=https://github.com/daygle/dayshield-installer-ui
 After=network.target
 Before=installer-ui.service
+ConditionKernelCommandLine=installer
 
 [Service]
 Type=simple

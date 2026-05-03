@@ -4,6 +4,7 @@ Documentation=https://github.com/daygle/dayshield-installer-ui
 After=multi-user.target systemd-udev-settle.service
 Wants=installer-ui-web.service
 Conflicts=getty@tty1.service
+ConditionKernelCommandLine=installer
 
 [Service]
 # Run on tty1 (physical console)
