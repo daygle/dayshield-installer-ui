@@ -5,6 +5,71 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DayShield Installer</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- Tailwind Play CDN (bundled, no network required) -->
+  <script src="tailwind.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            shield: {
+              50:  '#f0f7ff',
+              100: '#daeeff',
+              200: '#b3daff',
+              300: '#66b3ff',
+              400: '#3399ff',
+              500: '#0070e0',
+              600: '#005ab5',
+              700: '#00418a',
+              800: '#002d61',
+              900: '#001a3d',
+              950: '#000d1f',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Component classes that use @apply — processed by the Tailwind CDN runtime -->
+  <style type="text/tailwindcss">
+    @layer components {
+      .btn-primary {
+        @apply inline-flex items-center justify-center
+               px-5 py-2.5 rounded-lg font-semibold text-sm
+               bg-blue-600 text-white
+               hover:bg-blue-500 active:bg-blue-700
+               disabled:opacity-40 disabled:cursor-not-allowed
+               transition-colors duration-150;
+      }
+      .btn-secondary {
+        @apply inline-flex items-center justify-center
+               px-5 py-2.5 rounded-lg font-semibold text-sm
+               bg-gray-800 text-gray-200 border border-gray-700
+               hover:bg-gray-700 active:bg-gray-900
+               disabled:opacity-40 disabled:cursor-not-allowed
+               transition-colors duration-150;
+      }
+      .btn-lg {
+        @apply px-8 py-3.5 text-base rounded-xl;
+      }
+      .input-field {
+        @apply w-full bg-gray-900 border border-gray-700 rounded-lg
+               px-4 py-2.5 text-sm text-white placeholder-gray-600
+               focus:border-blue-500 focus:ring-1 focus:ring-blue-500
+               transition-colors duration-150;
+      }
+      .summary-row {
+        @apply flex items-center justify-between
+               bg-gray-900 border border-gray-800 rounded-lg px-4 py-3;
+      }
+      .summary-label {
+        @apply text-sm text-gray-400;
+      }
+      .summary-value {
+        @apply text-sm font-medium text-white font-mono;
+      }
+    }
+  </style>
   <!-- Load app first so installer() exists before Alpine initializes -->
   <script src="app.js" defer></script>
   <!-- Alpine.js (bundled, no CDN) -->

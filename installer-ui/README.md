@@ -1,4 +1,4 @@
-# DayShield Installer UI
+﻿# DayShield Installer UI
 
 A minimal, offline, deterministic installer UI for **DayShield Firewall OS**.
 
@@ -21,24 +21,25 @@ Runs on `tty1` (physical console) and is served by busybox httpd on `0.0.0.0:808
 
 ```
 installer-ui/
-├── index.html               # Main installer UI (Alpine.js + Tailwind)
-├── styles.css               # Tailwind CSS (build input + custom components)
-├── app.js                   # Alpine.js application state & logic
-├── alpine.min.js            # Alpine.js bundle (copy from releases — offline)
-├── httpd.conf               # busybox httpd CGI configuration
-├── api/
-│   ├── detect-disks.sh      # List block disks → JSON
-│   ├── detect-ifaces.sh     # List network interfaces → JSON
-│   ├── partition.sh         # GPT + EFI + root partition creation
-│   ├── format.sh            # FAT32 EFI + ext4 root formatting
-│   ├── install-rootfs.sh    # Mount + extract rootfs.tar.zst (auto-discovered from ISO)
-│   ├── install-bootloader.sh# GRUB BIOS + UEFI install
-│   ├── configure-system.sh  # Hostname, password, network, fstab, services
-│   ├── finalize.sh          # Unmount, sync, clean temp files
-│   └── reboot.sh            # systemctl reboot
-└── systemd/
-   ├── installer-ui.service     # tty1 launcher (JS-capable browser order + remote-access hint)
-   └── installer-ui-web.service # busybox httpd on 0.0.0.0:8080
+â”œâ”€â”€ index.html               # Main installer UI (Alpine.js + Tailwind)
+â”œâ”€â”€ styles.css               # Tailwind CSS (build input + custom components)
+â”œâ”€â”€ app.js                   # Alpine.js application state & logic
+â”œâ”€â”€ alpine.min.js            # Alpine.js bundle (copy from CDN once â€” offline)
+â”œâ”€â”€ tailwind.min.js          # Tailwind Play CDN bundle (copy from CDN once â€” offline)
+â”œâ”€â”€ httpd.conf               # busybox httpd CGI configuration
+â”œâ”€â”€ api/
+â”‚   â”œâ”€â”€ detect-disks.sh      # List block disks â†’ JSON
+â”‚   â”œâ”€â”€ detect-ifaces.sh     # List network interfaces â†’ JSON
+â”‚   â”œâ”€â”€ partition.sh         # GPT + EFI + root partition creation
+â”‚   â”œâ”€â”€ format.sh            # FAT32 EFI + ext4 root formatting
+â”‚   â”œâ”€â”€ install-rootfs.sh    # Mount + extract rootfs.tar.zst (auto-discovered from ISO)
+â”‚   â”œâ”€â”€ install-bootloader.sh# GRUB BIOS + UEFI install
+â”‚   â”œâ”€â”€ configure-system.sh  # Hostname, password, network, fstab, services
+â”‚   â”œâ”€â”€ finalize.sh          # Unmount, sync, clean temp files
+â”‚   â””â”€â”€ reboot.sh            # systemctl reboot
+â””â”€â”€ systemd/
+   â”œâ”€â”€ installer-ui.service     # tty1 launcher (JS-capable browser order + remote-access hint)
+   â””â”€â”€ installer-ui-web.service # busybox httpd on 0.0.0.0:8080
 ```
 
 ---
@@ -48,11 +49,11 @@ installer-ui/
 ### Installation Flow
 
 ```
-Welcome → Disk Selection → Partition Summary
-       → [auto] Partition → Format → Install rootfs → Install bootloader
-       → Configuration (hostname / password / iface)
-       → Summary → [auto] Configure system → Finalize
-       → Complete → Reboot
+Welcome â†’ Disk Selection â†’ Partition Summary
+       â†’ [auto] Partition â†’ Format â†’ Install rootfs â†’ Install bootloader
+       â†’ Configuration (hostname / password / iface)
+       â†’ Summary â†’ [auto] Configure system â†’ Finalize
+       â†’ Complete â†’ Reboot
 ```
 
 ### API Layer
@@ -69,12 +70,12 @@ Every script:
 
 ### Offline Operation
 
-No external resources are fetched at install time.  The only file that must be
-present before the ISO build is:
+No external resources are fetched at install time.  The following files must be
+present before the ISO build:
 
 | File | Description |
 |------|-------------|
-| `installer-ui/alpine.min.js` | Alpine.js bundle — copy from CDN once (see below) |
+| `installer-ui/alpine.min.js` | Alpine.js bundle â€” copy from CDN once (see below) |
 
 The `rootfs.tar.zst` archive is **embedded on the ISO** at
 `/installer/rootfs.tar.zst` by the `assemble-iso.sh` step when
@@ -84,34 +85,31 @@ automatically locates it from the live-boot mount point
 `/run/live/medium/installer/rootfs.tar.zst`), falling back to a `blkid` scan
 for the `DAYSHIELD`-labelled block device.
 
-**Fetching the Alpine.js bundle** (run once before building the ISO):
+**Fetching bundled scripts** (run once before building the ISO):
 
 ```bash
-curl -Lo installer-ui/alpine.min.js \
-  "https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"
+# Alpine.js reactive framework
+
+
+# Tailwind Play CDN — processes utility classes and @apply at runtime
+curl -Lo installer-ui/tailwind.min.js \
+  "https://cdn.tailwindcss.com"
 ```
 
 ---
 
-## Building Tailwind CSS
+## CSS Architecture
 
-The committed `styles.css` contains Tailwind directives and custom component
-classes.  To compile for production:
+`styles.css` contains only plain browser-native CSS (focus rings, scroll
+behaviour, font smoothing).  All Tailwind utility classes and `@apply`-based
+component definitions are processed at runtime by `tailwind.min.js` (the
+Tailwind Play CDN script) — no compilation step required.
 
-```bash
-# Install Tailwind CLI (build machine only — not needed on target)
-npm install -D tailwindcss
-
-# Generate compiled stylesheet
-npx tailwindcss -i installer-ui/styles.css \
-                -o installer-ui/dist/styles.css \
-                --content "installer-ui/index.html,installer-ui/app.js" \
-                --minify
-
-# Then update index.html to reference dist/styles.css
-```
-
-For the ISO build, replace the `<link>` in `index.html` with the compiled output.
+Custom component classes (`btn-primary`, `btn-secondary`, `input-field`,
+etc.) are declared in an inline `<style type="text/tailwindcss">` block in
+`index.html`.  Custom theme colours (`shield-*`) are configured via a
+`tailwind.config = { ... }` inline script.  Bundle `tailwind.min.js` once
+alongside `alpine.min.js` and commit it.
 
 ---
 
@@ -194,8 +192,8 @@ make iso \
 Behind the scenes, `inject-installer-ui.sh` runs after rootfs extraction but
 before squashfs build and:
 
-1. Copies `installer-ui/` → `build/rootfs/installer-ui/` (served by busybox httpd)
-2. Installs `systemd/installer-ui*.service` → `build/rootfs/etc/systemd/system/`
+1. Copies `installer-ui/` â†’ `build/rootfs/installer-ui/` (served by busybox httpd)
+2. Installs `systemd/installer-ui*.service` â†’ `build/rootfs/etc/systemd/system/`
 3. Creates `multi-user.target.wants/` symlinks so the services are enabled
 
 Both service units carry `ConditionKernelCommandLine=installer` so they are
@@ -250,7 +248,7 @@ Both service units carry `ConditionKernelCommandLine=installer` so they are
 ## Security Notes
 
 - The web UI listens on `0.0.0.0:8080` in the live installer environment.
-- Scripts run as root on the live ISO — this is required for disk operations.
+- Scripts run as root on the live ISO â€” this is required for disk operations.
 - Passwords are hashed with SHA-512 (openssl passwd -6) before writing to `/etc/shadow`.
 - No external network connections are made during installation.
 - The installer service is intended to be disabled or removed from the installed system; it only runs on the live ISO.
@@ -266,3 +264,4 @@ Both service units carry `ConditionKernelCommandLine=installer` so they are
 ## License
 
 Part of the DayShield Firewall OS project.
+

@@ -1,109 +1,25 @@
-/*
- * DayShield Installer — Tailwind CSS
+﻿/*
+ * DayShield Installer — base stylesheet (plain CSS only).
  *
- * This file is generated/augmented with a small custom component layer.
- * When using the Tailwind CLI build, run:
- *   tailwindcss -i styles.css -o dist/styles.css --minify
+ * Tailwind classes are processed at runtime by tailwind.min.js (the bundled
+ * Tailwind Play CDN script).  Component @apply rules live in the inline
+ * <style type="text/tailwindcss"> block in index.html.
  *
- * For offline use inside the ISO, the compiled output is committed as-is.
- * The @tailwind directives below are here for the build pipeline; the
- * hand-authored component classes work with any Tailwind v3 setup.
+ * This file contains only browser-native CSS that does not require a build
+ * step, so it can be served as-is by busybox httpd.
  */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* ── Custom color palette ──────────────────────────────────────── */
-@layer base {
-  :root {
-    --shield-50:  #f0f7ff;
-    --shield-100: #daeeff;
-    --shield-200: #b3daff;
-    --shield-300: #66b3ff;
-    --shield-400: #3399ff;
-    --shield-500: #0070e0;
-    --shield-600: #005ab5;
-    --shield-700: #00418a;
-    --shield-800: #002d61;
-    --shield-900: #001a3d;
-    --shield-950: #000d1f;
-  }
-
-  /* Smooth focus ring for keyboard navigation */
-  *:focus-visible {
-    @apply outline-none ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950;
-  }
-
-  html {
-    @apply scroll-smooth;
-  }
-
-  body {
-    @apply antialiased;
-  }
+/* Keyboard focus ring */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #60a5fa, 0 0 0 4px #030712;
 }
 
-/* ── Component utilities ───────────────────────────────────────── */
-@layer components {
-
-  /* Buttons */
-  .btn-primary {
-    @apply inline-flex items-center justify-center
-           px-5 py-2.5 rounded-lg font-semibold text-sm
-           bg-blue-600 text-white
-           hover:bg-blue-500 active:bg-blue-700
-           disabled:opacity-40 disabled:cursor-not-allowed
-           transition-colors duration-150;
-  }
-
-  .btn-secondary {
-    @apply inline-flex items-center justify-center
-           px-5 py-2.5 rounded-lg font-semibold text-sm
-           bg-gray-800 text-gray-200 border border-gray-700
-           hover:bg-gray-700 active:bg-gray-900
-           disabled:opacity-40 disabled:cursor-not-allowed
-           transition-colors duration-150;
-  }
-
-  .btn-lg {
-    @apply px-8 py-3.5 text-base rounded-xl;
-  }
-
-  /* Form inputs */
-  .input-field {
-    @apply w-full bg-gray-900 border border-gray-700 rounded-lg
-           px-4 py-2.5 text-sm text-white placeholder-gray-600
-           focus:border-blue-500 focus:ring-1 focus:ring-blue-500
-           transition-colors duration-150;
-  }
-
-  /* Summary table rows */
-  .summary-row {
-    @apply flex items-center justify-between
-           bg-gray-900 border border-gray-800 rounded-lg px-4 py-3;
-  }
-
-  .summary-label {
-    @apply text-sm text-gray-400;
-  }
-
-  .summary-value {
-    @apply text-sm font-medium text-white font-mono;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
-/* ── Custom shield color classes (Tailwind JIT safe) ───────────── */
-@layer utilities {
-  .bg-shield-900    { background-color: var(--shield-900); }
-  .bg-shield-900\/30 { background-color: color-mix(in srgb, var(--shield-900) 30%, transparent); }
-  .bg-shield-900\/40 { background-color: color-mix(in srgb, var(--shield-900) 40%, transparent); }
-  .bg-shield-900\/50 { background-color: color-mix(in srgb, var(--shield-900) 50%, transparent); }
-  .border-shield-500 { border-color: var(--shield-500); }
-  .border-shield-700 { border-color: var(--shield-700); }
-  .text-shield-300  { color: var(--shield-300); }
-  .text-shield-400  { color: var(--shield-400); }
-  .from-shield-400  { --tw-gradient-from: var(--shield-400); }
-  .from-shield-600  { --tw-gradient-from: var(--shield-600); }
-  .to-shield-400    { --tw-gradient-to: var(--shield-400); }
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
