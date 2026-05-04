@@ -358,6 +358,39 @@
                class="text-xs text-red-400 mt-1">Passwords do not match.</p>
           </div>
 
+          <!-- WAN Interface -->
+          <div>
+            <label for="wanIface" class="block text-sm font-medium text-gray-300 mb-1">WAN Interface</label>
+            <div x-show="loadingIfaces" class="text-sm text-gray-500">Detecting interfaces…</div>
+            <select id="wanIface" x-show="!loadingIfaces" x-model="wanIface" class="input-field">
+              <option value="" disabled>Select WAN interface</option>
+              <template x-for="i in ifaces" :key="'wan-' + i">
+                <option :value="i" x-text="i"></option>
+              </template>
+            </select>
+          </div>
+
+          <!-- WAN Type -->
+          <div>
+            <label for="wanType" class="block text-sm font-medium text-gray-300 mb-1">WAN Connection Type</label>
+            <select id="wanType" x-model="wanType" class="input-field">
+              <option value="dhcp">DHCP</option>
+              <option value="pppoe">PPPoE</option>
+            </select>
+          </div>
+
+          <!-- PPPoE credentials -->
+          <div x-show="wanType === 'pppoe'" class="space-y-5">
+            <div>
+              <label for="wanPppoeUser" class="block text-sm font-medium text-gray-300 mb-1">PPPoE Username</label>
+              <input id="wanPppoeUser" type="text" x-model="wanPppoeUser" class="input-field" autocomplete="off" spellcheck="false" />
+            </div>
+            <div>
+              <label for="wanPppoePass" class="block text-sm font-medium text-gray-300 mb-1">PPPoE Password</label>
+              <input id="wanPppoePass" type="password" x-model="wanPppoePass" class="input-field" autocomplete="new-password" />
+            </div>
+          </div>
+
           <!-- LAN Interface -->
           <div>
             <label for="iface" class="block text-sm font-medium text-gray-300 mb-1">LAN Interface</label>
@@ -369,6 +402,8 @@
               </template>
             </select>
           </div>
+
+          <p x-show="wanIface && iface && wanIface === iface" class="text-xs text-red-400 mt-1">WAN and LAN must be different interfaces.</p>
 
         </div>
       </div>
@@ -394,6 +429,14 @@
           <div class="summary-row">
             <span class="summary-label">LAN interface</span>
             <span class="summary-value" x-text="iface || '(not set)'"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">WAN interface</span>
+            <span class="summary-value" x-text="wanIface || '(not set)'"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">WAN mode</span>
+            <span class="summary-value" x-text="wanType === 'pppoe' ? 'PPPoE' : 'DHCP'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">BIOS boot partition</span>

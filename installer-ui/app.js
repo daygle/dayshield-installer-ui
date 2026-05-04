@@ -26,6 +26,10 @@ function installer() {
     password: '',
     passwordConfirm: '',
     iface: '',
+    wanIface: '',
+    wanType: 'dhcp',
+    wanPppoeUser: '',
+    wanPppoePass: '',
     ifaces: [],
     loadingIfaces: false,
 
@@ -98,7 +102,10 @@ function installer() {
           this.hostname.length > 0 &&
           this.password.length >= 8 &&
           this.password === this.passwordConfirm &&
-          !!this.iface
+          !!this.iface &&
+          !!this.wanIface &&
+          this.wanIface !== this.iface &&
+          (this.wanType !== 'pppoe' || (!!this.wanPppoeUser && !!this.wanPppoePass))
         );
         case 5: return true;
         case 6: return false; // automated
@@ -219,6 +226,12 @@ function installer() {
         this.ifaces = data.ifaces || [];
         if (!this.iface && this.ifaces.length > 0) {
           this.iface = this.ifaces[0];
+        }
+        if (!this.wanIface && this.ifaces.length > 1) {
+          this.wanIface = this.ifaces[0];
+          this.iface = this.ifaces[1];
+        } else if (!this.wanIface && this.ifaces.length === 1) {
+          this.wanIface = this.ifaces[0];
         }
       } catch (_) {
         // Non-fatal: user can type manually
@@ -367,10 +380,14 @@ function installer() {
 
     async runConfigureSystem() {
       return this.callApi('configure-system', {
-        disk:     this.selectedDisk,
-        hostname: this.hostname,
-        password: this.password,
-        iface:    this.iface,
+        disk:            this.selectedDisk,
+        hostname:        this.hostname,
+        password:        this.password,
+        iface:           this.iface,
+        wan_iface:       this.wanIface,
+        wan_type:        this.wanType,
+        wan_pppoe_user:  this.wanPppoeUser,
+        wan_pppoe_pass:  this.wanPppoePass,
       });
     },
 
