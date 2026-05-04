@@ -428,11 +428,11 @@
           </div>
           <div class="summary-row">
             <span class="summary-label">LAN interface</span>
-            <span class="summary-value" x-text="iface || '(not set)'"></span>
+            <span class="summary-value" x-text="(iface || '').trim() || '(not set)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">WAN interface</span>
-            <span class="summary-value" x-text="wanIface || '(not set)'"></span>
+            <span class="summary-value" x-text="(wanIface || '').trim() || '(not set)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">WAN mode</span>

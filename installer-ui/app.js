@@ -93,6 +93,8 @@ function installer() {
     },
 
     canProceed() {
+      const lan = (this.iface || '').trim();
+      const wan = (this.wanIface || '').trim();
       switch (this.step) {
         case 0: return true;
         case 1: return !!this.selectedDisk;
@@ -102,9 +104,9 @@ function installer() {
           this.hostname.length > 0 &&
           this.password.length >= 8 &&
           this.password === this.passwordConfirm &&
-          !!this.iface &&
-          !!this.wanIface &&
-          this.wanIface !== this.iface &&
+          !!lan &&
+          !!wan &&
+          wan !== lan &&
           (this.wanType !== 'pppoe' || (!!this.wanPppoeUser && !!this.wanPppoePass))
         );
         case 5: return true;
@@ -142,6 +144,8 @@ function installer() {
           break;
         case 4:
           await this.loadIfaces(); // refresh if needed
+          this.iface = (this.iface || '').trim();
+          this.wanIface = (this.wanIface || '').trim();
           this.step = 5;
           break;
         case 5:
@@ -223,15 +227,29 @@ function installer() {
       this.loadingIfaces = true;
       try {
         const data = await this.callApi('detect-ifaces');
-        this.ifaces = data.ifaces || [];
-        if (!this.iface && this.ifaces.length > 0) {
-          this.iface = this.ifaces[0];
+        const normalizedIfaces = (data.ifaces || [])
+          .map(i => (i || '').trim())
+          .filter(Boolean);
+        this.ifaces = [...new Set(normalizedIfaces)];
+
+        this.iface = (this.iface || '').trim();
+        this.wanIface = (this.wanIface || '').trim();
+
+        if (!this.wanIface && this.ifaces.length > 0) {
+          this.wanIface = this.ifaces[0];
         }
-        if (!this.wanIface && this.ifaces.length > 1) {
-          this.wanIface = this.ifaces[0];
-          this.iface = this.ifaces[1];
-        } else if (!this.wanIface && this.ifaces.length === 1) {
-          this.wanIface = this.ifaces[0];
+
+        if (!this.iface && this.ifaces.length > 0) {
+          const lanCandidate = this.ifaces.find(i => i !== this.wanIface);
+          this.iface = lanCandidate || this.ifaces[0];
+        }
+
+        if (this.wanIface && !this.ifaces.includes(this.wanIface)) {
+          this.wanIface = this.ifaces[0] || '';
+        }
+        if (this.iface && !this.ifaces.includes(this.iface)) {
+          const lanCandidate = this.ifaces.find(i => i !== this.wanIface);
+          this.iface = lanCandidate || this.ifaces[0] || '';
         }
       } catch (_) {
         // Non-fatal: user can type manually
@@ -383,8 +401,8 @@ function installer() {
         disk:            this.selectedDisk,
         hostname:        this.hostname,
         password:        this.password,
-        iface:           this.iface,
-        wan_iface:       this.wanIface,
+        iface:           (this.iface || '').trim(),
+        wan_iface:       (this.wanIface || '').trim(),
         wan_type:        this.wanType,
         wan_pppoe_user:  this.wanPppoeUser,
         wan_pppoe_pass:  this.wanPppoePass,
