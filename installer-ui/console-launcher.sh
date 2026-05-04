@@ -23,31 +23,36 @@ fi
 printf "\n\n  ============================================================\n"
 printf "  DayShield Installer - Console Access\n"
 printf "  ============================================================\n"
-printf "  Web UI is running on port 8080 and needs a JS-capable browser.\n\n"
+printf "  Two installation paths are available:\n"
+printf "    1) Web Installer from another computer (recommended)\n"
+printf "    2) Command-Line Installer on this console\n\n"
+printf "  Web Installer runs on port 8080 and needs a JS-capable browser.\n\n"
 
 if [ -n "$IPS" ]; then
-  printf "  Remote access URLs:\n"
+  printf "  Use these Web Installer URLs from another computer:\n"
   for ip in $IPS; do
     printf "    http://%s:8080/\n" "$ip"
   done
   printf "\n"
 else
-  printf "  No LAN IPv4 address detected yet.\n"
+  printf "  No LAN IPv4 address detected yet for remote access.\n"
   printf "  Fallback direct-connect address:\n"
   printf "    http://192.168.50.1:8080/\n"
   printf "  Windows IPv4 settings: 192.168.50.2 / 255.255.255.0\n\n"
 fi
 
-printf "  Local rescue options:\n"
-printf "    [R] Run console fallback wizard\n"
+printf "  Command-Line Installer options:\n"
+printf "    [C] Start command-line installer wizard\n"
+printf "    [R] Refresh this screen\n"
 printf "    [Q] Quit this screen\n\n"
 
 while :; do
-  printf "  Select [R/Q]: "
+  printf "  Select [C/R/Q]: "
   IFS= read -r choice || choice=""
   case "$choice" in
-    r|R) exec /usr/local/bin/dayshield-console ;;
+    c|C) exec /usr/local/bin/dayshield-console ;;
+    r|R) exec /bin/sh /installer-ui/console-launcher.sh ;;
     q|Q) exit 0 ;;
-    *) printf "  Invalid choice. Type R or Q.\n" ;;
+    *) printf "  Invalid choice. Type C, R, or Q.\n" ;;
   esac
 done
