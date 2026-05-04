@@ -76,6 +76,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
+BOOT_OK=0
+WARNING_MSG=""
+
 # ── Install GRUB - BIOS (i386-pc) ────────────────────────────────
 if [ -d "${TARGET}/usr/lib/grub/i386-pc" ] || \
    [ -d "/usr/lib/grub/i386-pc" ]; then
@@ -85,8 +88,9 @@ if [ -d "${TARGET}/usr/lib/grub/i386-pc" ] || \
           --boot-directory="${TARGET}/boot" \
           --recheck \
           "$DEV" >/dev/null 2>&1; then
-      printf '{"error":"BIOS grub-install failed on %s"}\n' "$DEV"
-      exit 1
+      WARNING_MSG="BIOS grub-install failed on ${DEV}"
+    else
+      BOOT_OK=1
     fi
   elif [ -n "${TARGET_GRUB_INSTALL}" ]; then
     if ! chroot "$TARGET" "${TARGET_GRUB_INSTALL}" \
@@ -94,12 +98,12 @@ if [ -d "${TARGET}/usr/lib/grub/i386-pc" ] || \
           --boot-directory=/boot \
           --recheck \
           "$DEV" >/dev/null 2>&1; then
-      printf '{"error":"BIOS grub-install failed in target on %s"}\n' "$DEV"
-      exit 1
+      WARNING_MSG="BIOS grub-install failed in target on ${DEV}"
+    else
+      BOOT_OK=1
     fi
   else
-    printf '{"error":"BIOS grub-install failed on %s"}\n' "$DEV"
-    exit 1
+    WARNING_MSG="BIOS grub-install unavailable for ${DEV}"
   fi
 fi
 
@@ -115,8 +119,13 @@ if [ -d "${TARGET}/usr/lib/grub/x86_64-efi" ] || \
           --bootloader-id="DayShield" \
           --recheck \
           >/dev/null 2>&1; then
-      printf '{"error":"UEFI grub-install failed"}\n'
-      exit 1
+      if [ -n "${WARNING_MSG}" ]; then
+        WARNING_MSG="${WARNING_MSG}; UEFI grub-install failed"
+      else
+        WARNING_MSG="UEFI grub-install failed"
+      fi
+    else
+      BOOT_OK=1
     fi
   elif [ -n "${TARGET_GRUB_INSTALL}" ]; then
     if ! chroot "$TARGET" "${TARGET_GRUB_INSTALL}" \
@@ -126,13 +135,30 @@ if [ -d "${TARGET}/usr/lib/grub/x86_64-efi" ] || \
           --bootloader-id="DayShield" \
           --recheck \
           >/dev/null 2>&1; then
-      printf '{"error":"UEFI grub-install failed in target"}\n'
-      exit 1
+      if [ -n "${WARNING_MSG}" ]; then
+        WARNING_MSG="${WARNING_MSG}; UEFI grub-install failed in target"
+      else
+        WARNING_MSG="UEFI grub-install failed in target"
+      fi
+    else
+      BOOT_OK=1
     fi
   else
-    printf '{"error":"UEFI grub-install failed"}\n'
-    exit 1
+    if [ -n "${WARNING_MSG}" ]; then
+      WARNING_MSG="${WARNING_MSG}; UEFI grub-install unavailable"
+    else
+      WARNING_MSG="UEFI grub-install unavailable"
+    fi
   fi
+fi
+
+if [ "${BOOT_OK}" -ne 1 ]; then
+  if [ -n "${WARNING_MSG}" ]; then
+    printf '{"error":"%s"}\n' "${WARNING_MSG}"
+  else
+    printf '{"error":"No bootloader target was installable"}\n'
+  fi
+  exit 1
 fi
 
 # ── Generate grub.cfg ─────────────────────────────────────────────
@@ -170,4 +196,9 @@ GRUBCFG
   fi
 fi
 
-printf '{"ok":true}\n'
+if [ -n "${WARNING_MSG}" ]; then
+  WARNING_JSON=$(printf '%s' "${WARNING_MSG}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  printf '{"ok":true,"warning":"%s"}\n' "${WARNING_JSON}"
+else
+  printf '{"ok":true}\n'
+fi
