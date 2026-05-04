@@ -13,6 +13,10 @@
 
 set -eu
 
+# CGI shells may have a minimal PATH that excludes sbin where GRUB tools live.
+PATH="/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+export PATH
+
 printf 'Content-Type: application/json\r\n'
 printf '\r\n'
 
@@ -42,8 +46,20 @@ if [ ! -d "${TARGET}/etc" ]; then
   exit 1
 fi
 
-if ! command -v grub-install >/dev/null 2>&1; then
-  printf '{"error":"grub-install not found"}\n'
+HOST_GRUB_INSTALL=""
+if command -v grub-install >/dev/null 2>&1; then
+  HOST_GRUB_INSTALL=$(command -v grub-install)
+fi
+
+TARGET_GRUB_INSTALL=""
+if [ -x "${TARGET}/usr/sbin/grub-install" ]; then
+  TARGET_GRUB_INSTALL="/usr/sbin/grub-install"
+elif [ -x "${TARGET}/usr/bin/grub-install" ]; then
+  TARGET_GRUB_INSTALL="/usr/bin/grub-install"
+fi
+
+if [ -z "${HOST_GRUB_INSTALL}" ] && [ -z "${TARGET_GRUB_INSTALL}" ]; then
+  printf '{"error":"grub-install not found on live system or target rootfs"}\n'
   exit 1
 fi
 
@@ -63,11 +79,25 @@ trap cleanup EXIT
 # ── Install GRUB - BIOS (i386-pc) ────────────────────────────────
 if [ -d "${TARGET}/usr/lib/grub/i386-pc" ] || \
    [ -d "/usr/lib/grub/i386-pc" ]; then
-  if ! grub-install \
-        --target=i386-pc \
-        --boot-directory="${TARGET}/boot" \
-        --recheck \
-        "$DEV" >/dev/null 2>&1; then
+  if [ -n "${HOST_GRUB_INSTALL}" ]; then
+    if ! "${HOST_GRUB_INSTALL}" \
+          --target=i386-pc \
+          --boot-directory="${TARGET}/boot" \
+          --recheck \
+          "$DEV" >/dev/null 2>&1; then
+      printf '{"error":"BIOS grub-install failed on %s"}\n' "$DEV"
+      exit 1
+    fi
+  elif [ -n "${TARGET_GRUB_INSTALL}" ]; then
+    if ! chroot "$TARGET" "${TARGET_GRUB_INSTALL}" \
+          --target=i386-pc \
+          --boot-directory=/boot \
+          --recheck \
+          "$DEV" >/dev/null 2>&1; then
+      printf '{"error":"BIOS grub-install failed in target on %s"}\n' "$DEV"
+      exit 1
+    fi
+  else
     printf '{"error":"BIOS grub-install failed on %s"}\n' "$DEV"
     exit 1
   fi
@@ -77,13 +107,29 @@ fi
 EFI_DIR="${TARGET}/boot/efi"
 if [ -d "${TARGET}/usr/lib/grub/x86_64-efi" ] || \
    [ -d "/usr/lib/grub/x86_64-efi" ]; then
-  if ! grub-install \
-        --target=x86_64-efi \
-        --efi-directory="$EFI_DIR" \
-        --boot-directory="${TARGET}/boot" \
-        --bootloader-id="DayShield" \
-        --recheck \
-        >/dev/null 2>&1; then
+  if [ -n "${HOST_GRUB_INSTALL}" ]; then
+    if ! "${HOST_GRUB_INSTALL}" \
+          --target=x86_64-efi \
+          --efi-directory="$EFI_DIR" \
+          --boot-directory="${TARGET}/boot" \
+          --bootloader-id="DayShield" \
+          --recheck \
+          >/dev/null 2>&1; then
+      printf '{"error":"UEFI grub-install failed"}\n'
+      exit 1
+    fi
+  elif [ -n "${TARGET_GRUB_INSTALL}" ]; then
+    if ! chroot "$TARGET" "${TARGET_GRUB_INSTALL}" \
+          --target=x86_64-efi \
+          --efi-directory=/boot/efi \
+          --boot-directory=/boot \
+          --bootloader-id="DayShield" \
+          --recheck \
+          >/dev/null 2>&1; then
+      printf '{"error":"UEFI grub-install failed in target"}\n'
+      exit 1
+    fi
+  else
     printf '{"error":"UEFI grub-install failed"}\n'
     exit 1
   fi
@@ -101,6 +147,8 @@ elif command -v grub-mkconfig >/dev/null 2>&1; then
   GRUB_DEVICE="$DEV" \
   GRUB_DEVICE_BOOT="$DEV" \
   grub-mkconfig -o "$GRUB_CFG" >/dev/null 2>&1 || true
+elif [ -x "${TARGET}/usr/sbin/grub-mkconfig" ] || [ -x "${TARGET}/usr/bin/grub-mkconfig" ]; then
+  chroot "$TARGET" grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 || true
 fi
 
 # ── Write minimal fallback grub.cfg if missing ───────────────────
