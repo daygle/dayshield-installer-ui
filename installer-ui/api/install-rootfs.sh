@@ -18,6 +18,38 @@ set -eu
 printf 'Content-Type: application/json\r\n'
 printf '\r\n'
 
+REPLIED=0
+ISO_SCAN_MOUNT=""
+
+cleanup() {
+  status=$?
+
+  if [ -n "$ISO_SCAN_MOUNT" ]; then
+    umount "$ISO_SCAN_MOUNT" 2>/dev/null || true
+    rmdir "$ISO_SCAN_MOUNT" 2>/dev/null || true
+  fi
+
+  if [ "$REPLIED" -eq 0 ] && [ "$status" -ne 0 ]; then
+    printf '{"error":"install-rootfs failed unexpectedly"}\n'
+  fi
+
+  exit "$status"
+}
+
+trap cleanup EXIT HUP INT TERM
+
+reply_error() {
+  REPLIED=1
+  printf '{"error":"%s"}\n' "$1"
+  exit 1
+}
+
+reply_ok() {
+  REPLIED=1
+  printf '{"ok":true}\n'
+  exit 0
+}
+
 # ── Parse CGI query string ────────────────────────────────────────
 DISK=""
 if [ -n "${QUERY_STRING:-}" ]; then
@@ -25,8 +57,7 @@ if [ -n "${QUERY_STRING:-}" ]; then
 fi
 
 if [ -z "$DISK" ]; then
-  printf '{"error":"Missing required parameter: disk"}\n'
-  exit 1
+  reply_error 'Missing required parameter: disk'
 fi
 
 DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
@@ -60,11 +91,8 @@ find_rootfs() {
     _mp=$(mktemp -d)
     if mount -o ro "$_dev" "$_mp" 2>/dev/null; then
       if [ -f "${_mp}/installer/rootfs.tar.zst" ]; then
-        # Copy to RAM so we can unmount the ISO
-        cp "${_mp}/installer/rootfs.tar.zst" /tmp/rootfs.tar.zst
-        umount "$_mp" 2>/dev/null || true
-        rmdir "$_mp" 2>/dev/null || true
-        printf '%s' "/tmp/rootfs.tar.zst"
+        ISO_SCAN_MOUNT="$_mp"
+        printf '%s' "${_mp}/installer/rootfs.tar.zst"
         return 0
       fi
       umount "$_mp" 2>/dev/null || true
@@ -80,29 +108,25 @@ ROOTFS=$(find_rootfs || true)
 # ── Validate ──────────────────────────────────────────────────────
 for part in "$EFI_PART" "$ROOT_PART"; do
   if [ ! -b "$part" ]; then
-    printf '{"error":"Partition not found: %s"}\n' "$part"
-    exit 1
+    reply_error "Partition not found: $part"
   fi
 done
 
 if [ -z "$ROOTFS" ] || [ ! -f "$ROOTFS" ]; then
-  printf '{"error":"rootfs archive not found; ensure the ISO was built with --installer-ui and contains /installer/rootfs.tar.zst"}\n'
-  exit 1
+  reply_error 'rootfs archive not found; ensure the ISO contains /installer/rootfs.tar.zst'
 fi
 
 # ── Mount root partition ──────────────────────────────────────────
 mkdir -p "$TARGET"
 if ! mount "$ROOT_PART" "$TARGET" 2>/dev/null; then
-  printf '{"error":"Failed to mount %s on %s"}\n' "$ROOT_PART" "$TARGET"
-  exit 1
+  reply_error "Failed to mount $ROOT_PART on $TARGET"
 fi
 
 # ── Mount EFI partition ───────────────────────────────────────────
 mkdir -p "${TARGET}/boot/efi"
 if ! mount "$EFI_PART" "${TARGET}/boot/efi" 2>/dev/null; then
   umount "$TARGET" 2>/dev/null || true
-  printf '{"error":"Failed to mount EFI partition %s"}\n' "$EFI_PART"
-  exit 1
+  reply_error "Failed to mount EFI partition $EFI_PART"
 fi
 
 # ── Extract rootfs ────────────────────────────────────────────────
@@ -111,22 +135,19 @@ if command -v zstd >/dev/null 2>&1; then
   if ! zstd -d --stdout "$ROOTFS" | tar -xp -C "$TARGET"; then
     umount "${TARGET}/boot/efi" 2>/dev/null || true
     umount "$TARGET" 2>/dev/null || true
-    printf '{"error":"Failed to extract rootfs archive"}\n'
-    exit 1
+    reply_error 'Failed to extract rootfs archive'
   fi
 elif command -v tar >/dev/null 2>&1 && tar --version 2>&1 | grep -q "GNU tar"; then
   # GNU tar with built-in zstd support
   if ! tar -xp --zstd -f "$ROOTFS" -C "$TARGET"; then
     umount "${TARGET}/boot/efi" 2>/dev/null || true
     umount "$TARGET" 2>/dev/null || true
-    printf '{"error":"Failed to extract rootfs archive (GNU tar)"}\n'
-    exit 1
+    reply_error 'Failed to extract rootfs archive (GNU tar)'
   fi
 else
   umount "${TARGET}/boot/efi" 2>/dev/null || true
   umount "$TARGET" 2>/dev/null || true
-  printf '{"error":"Neither zstd nor compatible tar found for .tar.zst extraction"}\n'
-  exit 1
+  reply_error 'Neither zstd nor compatible tar found for .tar.zst extraction'
 fi
 
 # ── Copy /etc/dayshield defaults ──────────────────────────────────
@@ -135,4 +156,4 @@ if [ -d "$DEFAULTS_DIR" ]; then
   cp -a "${DEFAULTS_DIR}/." "${TARGET}/etc/dayshield/"
 fi
 
-printf '{"ok":true}\n'
+reply_ok

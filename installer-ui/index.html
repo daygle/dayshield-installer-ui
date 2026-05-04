@@ -154,6 +154,11 @@
             Direct-connect fallback: set Windows adapter IPv4 to 192.168.50.2 / 255.255.255.0, then open
             <span class="font-mono text-xs">http://192.168.50.1:8080/</span>
           </p>
+          <p x-show="fallbackIface" class="text-blue-100/90 mt-1">
+            Fallback NIC: <span class="font-mono text-xs" x-text="fallbackIface"></span>
+            <span x-show="fallbackAssigned" class="text-green-300">(192.168.50.1 assigned)</span>
+            <span x-show="!fallbackAssigned" class="text-yellow-200">(fallback not currently assigned)</span>
+          </p>
           <button @click="loadAccessInfo()" class="btn-secondary mt-3 text-xs">Refresh Addresses</button>
         </div>
         <div class="bg-yellow-900/40 border border-yellow-700 rounded-lg p-4 text-left text-sm text-yellow-300 max-w-md w-full mb-8">

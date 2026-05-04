@@ -32,6 +32,8 @@ function installer() {
     // Access details for remote clients (e.g. Windows browser)
     accessIps: [],
     accessUrls: [],
+    fallbackIface: '',
+    fallbackAssigned: false,
     loadingAccess: false,
 
     // Progress
@@ -173,12 +175,17 @@ function installer() {
         throw new Error(`Network error calling ${script}: ${e.message}`);
       }
 
+      const text = await res.text().catch(() => '');
+
       let data;
       try {
-        data = await res.json();
+        data = text ? JSON.parse(text) : null;
       } catch (_) {
-        const text = await res.text().catch(() => '');
         throw new Error(`Script ${script} returned non-JSON response: ${text.slice(0, 200)}`);
+      }
+
+      if (!data) {
+        throw new Error(`Script ${script} returned empty response`);
       }
 
       if (data.error) throw new Error(data.error);
@@ -226,11 +233,15 @@ function installer() {
       try {
         const data = await this.callApi('detect-access');
         this.accessIps = data.ips || [];
-        this.accessUrls = data.urls || [];
+        this.accessUrls = (data.urls || []).filter(u => !u.includes('127.0.0.1'));
+        this.fallbackIface = data.fallback_iface || '';
+        this.fallbackAssigned = !!data.fallback_assigned;
       } catch (_) {
         // Non-fatal: keep installer usable even if access detection fails.
         this.accessIps = [];
-        this.accessUrls = ['http://127.0.0.1:8080/'];
+        this.accessUrls = [];
+        this.fallbackIface = '';
+        this.fallbackAssigned = false;
       } finally {
         this.loadingAccess = false;
       }

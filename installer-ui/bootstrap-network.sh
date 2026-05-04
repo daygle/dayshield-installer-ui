@@ -1,18 +1,15 @@
 #!/bin/sh
 # bootstrap-network.sh - Ensure installer web UI is reachable from a remote host.
-# If no global IPv4 exists on physical interfaces, assign a deterministic fallback
-# address for direct-connect installs.
+# Prefer the second physical NIC (LAN) for direct-connect fallback addressing.
 
 set -eu
 
 FALLBACK_IP="192.168.50.1/24"
 
-has_global_ip() {
-  command -v ip >/dev/null 2>&1 || return 1
-  ip -o -4 addr show scope global 2>/dev/null | grep -q .
-}
+preferred_fallback_iface() {
+  first_iface=""
+  idx=0
 
-first_physical_iface() {
   for iface_path in /sys/class/net/*; do
     iface=$(basename "$iface_path")
     [ "$iface" = "lo" ] && continue
@@ -26,13 +23,27 @@ first_physical_iface() {
       */virtual/*) continue ;;
     esac
 
-    printf '%s\n' "$iface"
-    return 0
+    idx=$((idx + 1))
+    [ -z "$first_iface" ] && first_iface="$iface"
+
+    # WAN is typically first; prefer second physical NIC for fallback LAN.
+    if [ "$idx" -eq 2 ]; then
+      printf '%s\n' "$iface"
+      return 0
+    fi
   done
+
+  [ -n "$first_iface" ] && printf '%s\n' "$first_iface" && return 0
   return 1
 }
 
-IFACE=$(first_physical_iface || true)
+iface_has_global_ip() {
+  _iface="$1"
+  command -v ip >/dev/null 2>&1 || return 1
+  ip -o -4 addr show dev "$_iface" scope global 2>/dev/null | grep -q .
+}
+
+IFACE=$(preferred_fallback_iface || true)
 
 # Installer-only console hygiene: suppress martian log spam unconditionally.
 # This must run even when DHCP already provided an IP (the early-exit path
@@ -46,8 +57,8 @@ if command -v sysctl >/dev/null 2>&1; then
   fi
 fi
 
-# If DHCP or static IPv4 already exists, skip fallback address assignment.
-if has_global_ip; then
+# If chosen fallback NIC already has IPv4, skip fallback address assignment.
+if iface_has_global_ip "$IFACE"; then
   exit 0
 fi
 
