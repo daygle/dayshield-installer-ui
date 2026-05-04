@@ -67,8 +67,38 @@ else
   exit 1
 fi
 
-# Inform kernel of new partition table
+# Derive partition node names (NVMe/MMC use p1/p2 suffix).
+case "$DISK" in
+  nvme*|mmcblk*)
+    EFI_PART="/dev/${DISK}p1"
+    ROOT_PART="/dev/${DISK}p2"
+    ;;
+  *)
+    EFI_PART="/dev/${DISK}1"
+    ROOT_PART="/dev/${DISK}2"
+    ;;
+esac
+
+# Inform kernel of new partition table and wait for partition nodes to appear.
 partprobe "$DEV" >/dev/null 2>&1 || true
-sleep 1
+
+# udevadm settle waits for udev to finish creating /dev nodes; fall back to a
+# timed loop in case udevadm is unavailable (busybox environments).
+if command -v udevadm >/dev/null 2>&1; then
+  udevadm settle --timeout=10 >/dev/null 2>&1 || true
+fi
+
+# Extra safety: wait up to 10 s for both partition nodes to appear.
+_wait_part() {
+  local part="$1" i=0
+  while [ ! -b "$part" ] && [ $i -lt 10 ]; do
+    sleep 1; i=$(( i + 1 ))
+  done
+  [ -b "$part" ]
+}
+if ! _wait_part "${EFI_PART}" || ! _wait_part "${ROOT_PART}"; then
+  printf '{"error":"Partition nodes did not appear after partitioning %s"}\n' "$DEV"
+  exit 1
+fi
 
 printf '{"ok":true}\n'
