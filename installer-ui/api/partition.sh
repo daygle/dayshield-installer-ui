@@ -1,11 +1,12 @@
 #!/bin/sh
-# partition.sh - Create GPT partition table with EFI + root partitions
+# partition.sh - Create GPT partition table with BIOS boot + EFI + root partitions
 # Query string params: disk=<name>   (e.g. disk=sda)
 # Output: JSON  { "ok": true } | { "error": "message" }
 #
 # Partition layout:
-#   Partition 1:  512 MiB - EFI System (FAT32)
-#   Partition 2:  Remaining - Linux filesystem (ext4)
+#   Partition 1:    1 MiB - BIOS Boot Partition (EF02, unformatted)
+#   Partition 2:  512 MiB - EFI System (FAT32)
+#   Partition 3:  Remaining - Linux filesystem (ext4)
 #
 # Requires: sgdisk (gdisk package) or parted as fallback.
 # Must be POSIX-compliant and run as root.
@@ -44,8 +45,9 @@ wipefs -a "$DEV" >/dev/null 2>&1 || true
 if command -v sgdisk >/dev/null 2>&1; then
   if ! sgdisk \
         --zap-all \
-        --new=1:0:+512M  --typecode=1:EF00 --change-name=1:"EFI System" \
-        --new=2:0:0       --typecode=2:8300 --change-name=2:"Linux Root" \
+        --new=1:1MiB:+1MiB --typecode=1:EF02 --change-name=1:"BIOS Boot" \
+        --new=2:0:+512M    --typecode=2:EF00 --change-name=2:"EFI System" \
+        --new=3:0:0        --typecode=3:8300 --change-name=3:"Linux Root" \
         "$DEV" >/dev/null 2>&1; then
     printf '{"error":"sgdisk failed on %s"}\n' "$DEV"
     exit 1
@@ -55,9 +57,11 @@ if command -v sgdisk >/dev/null 2>&1; then
 elif command -v parted >/dev/null 2>&1; then
   if ! parted -s "$DEV" \
         mklabel gpt \
-        mkpart primary fat32 1MiB 513MiB \
-        set 1 esp on \
-        mkpart primary ext4 513MiB 100% >/dev/null 2>&1; then
+        mkpart primary 1MiB 2MiB \
+        set 1 bios_grub on \
+        mkpart primary fat32 2MiB 514MiB \
+        set 2 esp on \
+        mkpart primary ext4 514MiB 100% >/dev/null 2>&1; then
     printf '{"error":"parted failed on %s"}\n' "$DEV"
     exit 1
   fi
@@ -70,12 +74,12 @@ fi
 # Derive partition node names (NVMe/MMC use p1/p2 suffix).
 case "$DISK" in
   nvme*|mmcblk*)
-    EFI_PART="/dev/${DISK}p1"
-    ROOT_PART="/dev/${DISK}p2"
+    EFI_PART="/dev/${DISK}p2"
+    ROOT_PART="/dev/${DISK}p3"
     ;;
   *)
-    EFI_PART="/dev/${DISK}1"
-    ROOT_PART="/dev/${DISK}2"
+    EFI_PART="/dev/${DISK}2"
+    ROOT_PART="/dev/${DISK}3"
     ;;
 esac
 

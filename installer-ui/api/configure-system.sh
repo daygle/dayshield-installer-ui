@@ -138,7 +138,9 @@ EOF
 # Also write a systemd-networkd .network file if applicable
 NETWORKD_DIR="${TARGET}/etc/systemd/network"
 mkdir -p "$NETWORKD_DIR"
-cat > "${NETWORKD_DIR}/10-lan.network" << EOF
+# Remove generic installer placeholder to avoid match/order conflicts.
+rm -f "${NETWORKD_DIR}/10-dayshield-eth.network"
+cat > "${NETWORKD_DIR}/20-lan.network" << EOF
 [Match]
 Name=${IFACE}
 
@@ -351,9 +353,9 @@ done
 
 # ── Write /etc/fstab ──────────────────────────────────────────────
 DISK_NODE=$(printf '%s' "$DISK" | sed 's|^/dev/||')
-EFI_PART="/dev/${DISK_NODE}1"
-ROOT_PART="/dev/${DISK_NODE}2"
-case "$DISK_NODE" in nvme*|mmcblk*) EFI_PART="/dev/${DISK_NODE}p1"; ROOT_PART="/dev/${DISK_NODE}p2" ;; esac
+EFI_PART="/dev/${DISK_NODE}2"
+ROOT_PART="/dev/${DISK_NODE}3"
+case "$DISK_NODE" in nvme*|mmcblk*) EFI_PART="/dev/${DISK_NODE}p2"; ROOT_PART="/dev/${DISK_NODE}p3" ;; esac
 
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT_PART" 2>/dev/null || true)
 EFI_UUID=$(blkid -s UUID -o value "$EFI_PART" 2>/dev/null || true)

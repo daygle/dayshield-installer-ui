@@ -179,7 +179,11 @@ fi
 
 # ── Write minimal fallback grub.cfg if missing ───────────────────
 if [ ! -s "$GRUB_CFG" ]; then
-  ROOT_UUID=$(blkid -s UUID -o value "/dev/${DISK}2" 2>/dev/null || true)
+  ROOT_NODE="/dev/${DISK}3"
+  case "$DISK" in
+    nvme*|mmcblk*) ROOT_NODE="/dev/${DISK}p3" ;;
+  esac
+  ROOT_UUID=$(blkid -s UUID -o value "$ROOT_NODE" 2>/dev/null || true)
   cat > "$GRUB_CFG" << GRUBCFG
 set default=0
 set timeout=5

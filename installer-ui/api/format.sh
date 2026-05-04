@@ -4,8 +4,8 @@
 # Output: JSON  { "ok": true } | { "error": "message" }
 #
 # Actions:
-#   /dev/<disk>1  →  FAT32 (EFI)
-#   /dev/<disk>2  →  ext4  (root, metadata checksum enabled)
+#   /dev/<disk>2  →  FAT32 (EFI)
+#   /dev/<disk>3  →  ext4  (root, metadata checksum enabled)
 #
 # Must be POSIX-compliant and run as root.
 
@@ -26,14 +26,14 @@ if [ -z "$DISK" ]; then
 fi
 
 DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
-EFI_PART="/dev/${DISK}1"
-ROOT_PART="/dev/${DISK}2"
+EFI_PART="/dev/${DISK}2"
+ROOT_PART="/dev/${DISK}3"
 
 # Handle NVMe partition naming (nvme0n1p1 instead of nvme0n1 + 1)
 case "$DISK" in
   nvme*|mmcblk*)
-    EFI_PART="/dev/${DISK}p1"
-    ROOT_PART="/dev/${DISK}p2"
+    EFI_PART="/dev/${DISK}p2"
+    ROOT_PART="/dev/${DISK}p3"
     ;;
 esac
 

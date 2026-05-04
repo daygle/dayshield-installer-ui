@@ -8,8 +8,8 @@
 #   /run/installer/defaults/        - optional /etc/dayshield overlay
 #
 # Mount layout:
-#   /mnt/target       - root partition  (/dev/<disk>2)
-#   /mnt/target/boot/efi  - EFI partition  (/dev/<disk>1)
+#   /mnt/target           - root partition  (/dev/<disk>3)
+#   /mnt/target/boot/efi  - EFI partition   (/dev/<disk>2)
 #
 # Must be POSIX-compliant and run as root.
 
@@ -61,9 +61,9 @@ if [ -z "$DISK" ]; then
 fi
 
 DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
-EFI_PART="/dev/${DISK}1"
-ROOT_PART="/dev/${DISK}2"
-case "$DISK" in nvme*|mmcblk*) EFI_PART="/dev/${DISK}p1"; ROOT_PART="/dev/${DISK}p2" ;; esac
+EFI_PART="/dev/${DISK}2"
+ROOT_PART="/dev/${DISK}3"
+case "$DISK" in nvme*|mmcblk*) EFI_PART="/dev/${DISK}p2"; ROOT_PART="/dev/${DISK}p3" ;; esac
 
 TARGET="/mnt/target"
 DEFAULTS_DIR="/run/installer/defaults"
