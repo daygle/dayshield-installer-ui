@@ -34,6 +34,9 @@ if [ -n "$IPS" ]; then
     printf "    http://%s:8080/\n" "$ip"
   done
   printf "\n"
+  printf "  Direct-connect fallback URL:\n"
+  printf "    http://192.168.50.1:8080/\n"
+  printf "\n"
 else
   printf "  No LAN IPv4 address detected yet for remote access.\n"
   printf "  Fallback direct-connect address:\n"
