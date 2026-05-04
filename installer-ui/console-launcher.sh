@@ -90,13 +90,5 @@ printf "    [C] Start command-line installer wizard\n"
 printf "    [R] Refresh this screen\n"
 printf "    [Q] Quit this screen\n\n"
 
-while :; do
-  printf "  Select [C/R/Q]: "
-  IFS= read -r choice || choice=""
-  case "$choice" in
-    c|C) exec /usr/local/bin/dayshield-console ;;
-    r|R) exec /bin/sh /installer-ui/console-launcher.sh ;;
-    q|Q) exit 0 ;;
-    *) printf "  Invalid choice. Type C, R, or Q.\n" ;;
-  esac
-done
+printf "  Launching command-line installer wizard...\n\n"
+exec /usr/local/bin/dayshield-console
