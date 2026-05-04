@@ -263,25 +263,16 @@ server:
 
   harden-glue: yes
   harden-dnssec-stripped: yes
-  harden-referral-path: yes
-  harden-algo-downgrade: yes
-  use-caps-for-id: yes
   hide-identity: yes
   hide-version: yes
-  qname-minimisation: yes
 
   cache-min-ttl: 300
   cache-max-ttl: 86400
-  neg-cache-size: 4m
 
   verbosity: 1
   log-queries: no
 
   num-threads: 2
-  msg-cache-slabs: 4
-  rrset-cache-slabs: 4
-  infra-cache-slabs: 4
-  key-cache-slabs: 4
   rrset-cache-size: 256m
   msg-cache-size: 128m
 
@@ -291,7 +282,6 @@ server:
   private-address: 172.16.0.0/12
   private-address: 192.168.0.0/16
   private-address: 100.64.0.0/10
-  private-address: 169.254.0.0/16
 
   local-zone: "10.in-addr.arpa." nodefault
   local-zone: "16.172.in-addr.arpa." nodefault
