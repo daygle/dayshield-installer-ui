@@ -1,6 +1,6 @@
 ﻿# DayShield Installer UI
 
-Offline installer interface for **DayShield Firewall OS**, used by the live ISO.
+Web installer interface for **DayShield Firewall OS**, used by the live ISO.
 
 ## What this repo contains
 
