@@ -19,14 +19,13 @@ StandardError=journal
 User=root
 Group=root
 
-# Silence kernel console messages on tty1 once the UI is ready, then clear.
-ExecStartPre=/bin/sh -c 'dmesg -n 1 2>/dev/null || true; printf "\033c" > /dev/tty1 2>/dev/null || true'
-
 # Try a JS-capable browser first. If none are available, print a message
 # directing the user to open the web UI from another machine.
 ExecStart=/bin/sh -c '\
+  dmesg -n 1 2>/dev/null || true; \
+  printf "\033c"; \
   URL="http://127.0.0.1:8080/"; \
-  IPS="$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | tr "\n" " ")"; \
+  IPS="$(ip -o -4 addr show scope global 2>/dev/null | cut -d" " -f7 | cut -d/ -f1 | tr "\n" " ")"; \
   if command -v epiphany-browser >/dev/null 2>&1; then \
     exec epiphany-browser "$URL"; \
   elif command -v firefox >/dev/null 2>&1; then \
