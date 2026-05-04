@@ -313,9 +313,6 @@ server:
   local-zone: "168.192.in-addr.arpa." nodefault
 
   minimal-responses: yes
-  directory: "/etc/unbound"
-  chroot: ""
-  pidfile: "/run/unbound/unbound.pid"
 EOF
 
 # Keep router mode stable and avoid noisy martian printk spam on deployed
