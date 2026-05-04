@@ -32,23 +32,26 @@ first_physical_iface() {
   return 1
 }
 
-# If DHCP or static IPv4 already exists, do nothing.
+IFACE=$(first_physical_iface || true)
+
+# Installer-only console hygiene: suppress martian log spam unconditionally.
+# This must run even when DHCP already provided an IP (the early-exit path
+# would otherwise skip it and leave noisy kernel logs flooding the console).
+if command -v sysctl >/dev/null 2>&1; then
+  sysctl -q -w net.ipv4.conf.all.log_martians=0 2>/dev/null || true
+  sysctl -q -w net.ipv4.conf.default.log_martians=0 2>/dev/null || true
+  if [ -n "${IFACE:-}" ]; then
+    sysctl -q -w "net.ipv4.conf.${IFACE}.log_martians=0" 2>/dev/null || true
+    sysctl -q -w "net.ipv4.conf.${IFACE}.rp_filter=2" 2>/dev/null || true
+  fi
+fi
+
+# If DHCP or static IPv4 already exists, skip fallback address assignment.
 if has_global_ip; then
   exit 0
 fi
 
-IFACE=$(first_physical_iface || true)
 [ -z "${IFACE:-}" ] && exit 0
-
-# Installer-only console hygiene:
-# direct-connect and fallback addressing can trigger noisy martian logs in the
-# live environment. Keep the installed system defaults untouched.
-if command -v sysctl >/dev/null 2>&1; then
-  sysctl -q -w net.ipv4.conf.all.log_martians=0 >/dev/null 2>&1 || true
-  sysctl -q -w net.ipv4.conf.default.log_martians=0 >/dev/null 2>&1 || true
-  sysctl -q -w "net.ipv4.conf.${IFACE}.log_martians=0" >/dev/null 2>&1 || true
-  sysctl -q -w "net.ipv4.conf.${IFACE}.rp_filter=2" >/dev/null 2>&1 || true
-fi
 
 # Bring interface up and add fallback address if not already present.
 ip link set "$IFACE" up >/dev/null 2>&1 || true
