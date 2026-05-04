@@ -446,6 +446,20 @@ EOF
 SYSTEMD_MULTI_USER="${TARGET}/etc/systemd/system/multi-user.target.wants"
 mkdir -p "$SYSTEMD_MULTI_USER"
 
+resolve_unit_path() {
+  # Prefer custom units shipped in /etc over distro units.
+  _svc="$1"
+  if [ -f "${TARGET}/etc/systemd/system/${_svc}.service" ]; then
+    printf '/etc/systemd/system/%s.service' "$_svc"
+  elif [ -f "${TARGET}/lib/systemd/system/${_svc}.service" ]; then
+    printf '/lib/systemd/system/%s.service' "$_svc"
+  elif [ -f "${TARGET}/usr/lib/systemd/system/${_svc}.service" ]; then
+    printf '/usr/lib/systemd/system/%s.service' "$_svc"
+  else
+    return 1
+  fi
+}
+
 SERVICE_SRC="${TARGET}/usr/lib/systemd/system/dayshield-core.service"
 SERVICE_LINK="${SYSTEMD_MULTI_USER}/dayshield-core.service"
 
@@ -459,9 +473,8 @@ ln -sf /dev/null "${TARGET}/etc/systemd/system/systemd-resolved.service" 2>/dev/
 
 # Also enable required network services.
 for svc in systemd-networkd kea-dhcp4-server nftables unbound; do
-  svc_path="${TARGET}/usr/lib/systemd/system/${svc}.service"
-  if [ -f "$svc_path" ]; then
-    ln -sf "/usr/lib/systemd/system/${svc}.service" \
+  if resolved_path=$(resolve_unit_path "$svc"); then
+    ln -sf "${resolved_path}" \
        "${SYSTEMD_MULTI_USER}/${svc}.service" 2>/dev/null || true
   fi
 done
