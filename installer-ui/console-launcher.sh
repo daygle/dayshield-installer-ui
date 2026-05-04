@@ -19,7 +19,7 @@ is_listening_8080() {
 
 start_emergency_httpd() {
   if command -v busybox >/dev/null 2>&1 && busybox --list 2>/dev/null | grep -qx httpd; then
-    if busybox httpd --help 2>&1 | grep -q "-t"; then
+    if busybox httpd --help 2>&1 | grep -q -- "-t"; then
       busybox httpd -f -p 0.0.0.0:8080 -h /installer-ui -c /installer-ui/httpd.conf -t 1800 &
     else
       busybox httpd -f -p 0.0.0.0:8080 -h /installer-ui -c /installer-ui/httpd.conf &

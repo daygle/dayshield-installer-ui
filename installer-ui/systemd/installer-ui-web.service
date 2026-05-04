@@ -21,7 +21,7 @@ ExecStartPre=/bin/sh /installer-ui/bootstrap-network.sh
 
 ExecStart=/bin/sh -c '\
   if command -v busybox >/dev/null 2>&1 && busybox --list 2>/dev/null | grep -qx httpd; then \
-    if busybox httpd --help 2>&1 | grep -q "-t"; then \
+    if busybox httpd --help 2>&1 | grep -q -- "-t"; then \
       exec busybox httpd -f -p 0.0.0.0:8080 -h /installer-ui -c /installer-ui/httpd.conf -t 1800; \
     else \
       exec busybox httpd -f -p 0.0.0.0:8080 -h /installer-ui -c /installer-ui/httpd.conf; \
@@ -47,7 +47,8 @@ ProtectSystem=no
 ProtectHome=yes
 NoNewPrivileges=no
 
-MemoryMax=128M
+# Rootfs extraction (zstd | tar) can exceed 128M in CGI context.
+MemoryMax=1G
 
 [Install]
 WantedBy=multi-user.target
