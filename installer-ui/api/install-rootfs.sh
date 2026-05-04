@@ -1,15 +1,15 @@
 #!/bin/sh
-# install-rootfs.sh — Mount target partitions and extract the DayShield rootfs
+# install-rootfs.sh - Mount target partitions and extract the DayShield rootfs
 # Query string params: disk=<name>   (e.g. disk=sda)
 # Output: JSON  { "ok": true } | { "error": "message" }
 #
 # Expects:
-#   /run/installer/rootfs.tar.zst   — root filesystem archive
-#   /run/installer/defaults/        — optional /etc/dayshield overlay
+#   /run/installer/rootfs.tar.zst   - root filesystem archive
+#   /run/installer/defaults/        - optional /etc/dayshield overlay
 #
 # Mount layout:
-#   /mnt/target       — root partition  (/dev/<disk>2)
-#   /mnt/target/boot/efi  — EFI partition  (/dev/<disk>1)
+#   /mnt/target       - root partition  (/dev/<disk>2)
+#   /mnt/target/boot/efi  - EFI partition  (/dev/<disk>1)
 #
 # Must be POSIX-compliant and run as root.
 

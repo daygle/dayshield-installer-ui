@@ -1,5 +1,5 @@
 #!/bin/sh
-# detect-disks.sh — List available block disks (excludes loop/rom/ram)
+# detect-disks.sh - List available block disks (excludes loop/rom/ram)
 # Output: JSON  { "ok": true, "disks": [ { "name": "sda", "size": "256G", "type": "disk" }, ... ] }
 #
 # Called by the installer web UI via busybox httpd CGI.

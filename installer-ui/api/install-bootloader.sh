@@ -1,5 +1,5 @@
 #!/bin/sh
-# install-bootloader.sh — Install GRUB for both BIOS (MBR) and UEFI targets
+# install-bootloader.sh - Install GRUB for both BIOS (MBR) and UEFI targets
 # Query string params: disk=<name>   (e.g. disk=sda)
 # Output: JSON  { "ok": true } | { "error": "message" }
 #
@@ -38,7 +38,7 @@ if [ ! -b "$DEV" ]; then
 fi
 
 if [ ! -d "${TARGET}/etc" ]; then
-  printf '{"error":"Target root not found at %s — run install-rootfs first"}\n' "$TARGET"
+  printf '{"error":"Target root not found at %s - run install-rootfs first"}\n' "$TARGET"
   exit 1
 fi
 
@@ -60,7 +60,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# ── Install GRUB — BIOS (i386-pc) ────────────────────────────────
+# ── Install GRUB - BIOS (i386-pc) ────────────────────────────────
 if [ -d "${TARGET}/usr/lib/grub/i386-pc" ] || \
    [ -d "/usr/lib/grub/i386-pc" ]; then
   if ! grub-install \
@@ -73,7 +73,7 @@ if [ -d "${TARGET}/usr/lib/grub/i386-pc" ] || \
   fi
 fi
 
-# ── Install GRUB — UEFI (x86_64-efi) ────────────────────────────
+# ── Install GRUB - UEFI (x86_64-efi) ────────────────────────────
 EFI_DIR="${TARGET}/boot/efi"
 if [ -d "${TARGET}/usr/lib/grub/x86_64-efi" ] || \
    [ -d "/usr/lib/grub/x86_64-efi" ]; then

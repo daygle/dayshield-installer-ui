@@ -1,5 +1,5 @@
 /**
- * DayShield Installer — Alpine.js application
+ * DayShield Installer - Alpine.js application
  *
  * Registers the global `installer()` Alpine component.
  * All backend calls hit local shell scripts served by busybox httpd
@@ -85,7 +85,7 @@ function installer() {
         case 0: return true;
         case 1: return !!this.selectedDisk;
         case 2: return !!this.selectedDisk;
-        case 3: return false; // automated — driven by runInstallPipeline()
+        case 3: return false; // automated - driven by runInstallPipeline()
         case 4: return (
           this.hostname.length > 0 &&
           this.password.length >= 8 &&

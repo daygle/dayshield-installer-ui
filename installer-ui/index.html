@@ -30,7 +30,7 @@
       }
     }
   </script>
-  <!-- Component classes that use @apply — processed by the Tailwind CDN runtime -->
+  <!-- Component classes that use @apply - processed by the Tailwind CDN runtime -->
   <style type="text/tailwindcss">
     @layer components {
       .btn-primary {
@@ -85,7 +85,7 @@
     </svg>
     <div>
       <h1 class="text-xl font-bold text-white tracking-wide">DayShield Firewall OS</h1>
-      <p class="text-xs text-shield-400">Installer — Offline Setup Utility</p>
+      <p class="text-xs text-shield-400">Installer - Offline Setup Utility</p>
     </div>
   </header>
 
@@ -133,10 +133,10 @@
             d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7L12 2z"/>
         </svg>
         <h2 class="text-3xl font-bold text-white mb-3">Welcome to DayShield</h2>
-        <p class="text-gray-400 text-lg mb-2">Firewall OS — Installer</p>
+        <p class="text-gray-400 text-lg mb-2">Firewall OS - Installer</p>
         <p class="text-gray-500 text-sm mb-8 max-w-md">
           This installer will guide you through setting up DayShield on your hardware.
-          All operations are performed locally — no internet connection is required.
+          All operations are performed locally - no internet connection is required.
         </p>
         <div class="bg-yellow-900/40 border border-yellow-700 rounded-lg p-4 text-left text-sm text-yellow-300 max-w-md w-full mb-8">
           <p class="font-semibold mb-1">⚠ Warning</p>
@@ -178,7 +178,7 @@
               </svg>
               <div class="flex-1">
                 <p class="font-semibold text-white" x-text="'/dev/' + disk.name"></p>
-                <p class="text-sm text-gray-400" x-text="disk.size + '  —  ' + disk.type"></p>
+                <p class="text-sm text-gray-400" x-text="disk.size + '  -  ' + disk.type"></p>
               </div>
               <span x-show="selectedDisk === disk.name"
                     class="text-shield-400">
@@ -216,7 +216,7 @@
             </div>
             <div>
               <p class="font-semibold text-white">EFI System Partition</p>
-              <p class="text-sm text-gray-400">512 MiB — FAT32 — <span x-text="'/dev/' + selectedDisk + '1'"></span></p>
+              <p class="text-sm text-gray-400">512 MiB - FAT32 - <span x-text="'/dev/' + selectedDisk + '1'"></span></p>
             </div>
           </div>
           <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
@@ -225,7 +225,7 @@
             </div>
             <div>
               <p class="font-semibold text-white">Root Partition</p>
-              <p class="text-sm text-gray-400">Remaining space — ext4 — <span x-text="'/dev/' + selectedDisk + '2'"></span></p>
+              <p class="text-sm text-gray-400">Remaining space - ext4 - <span x-text="'/dev/' + selectedDisk + '2'"></span></p>
             </div>
           </div>
         </div>
@@ -457,7 +457,7 @@
 
   <!-- ── Footer ────────────────────────────────────────────── -->
   <footer class="bg-gray-900 border-t border-gray-800 px-6 py-4 flex items-center justify-between">
-    <div class="text-xs text-gray-600">DayShield OS Installer v1.0 — Offline</div>
+    <div class="text-xs text-gray-600">DayShield OS Installer v1.0 - Offline</div>
 
     <div class="flex gap-3">
       <!-- Back button -->

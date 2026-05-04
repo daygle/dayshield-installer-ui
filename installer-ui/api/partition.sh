@@ -1,11 +1,11 @@
 #!/bin/sh
-# partition.sh — Create GPT partition table with EFI + root partitions
+# partition.sh - Create GPT partition table with EFI + root partitions
 # Query string params: disk=<name>   (e.g. disk=sda)
 # Output: JSON  { "ok": true } | { "error": "message" }
 #
 # Partition layout:
-#   Partition 1:  512 MiB — EFI System (FAT32)
-#   Partition 2:  Remaining — Linux filesystem (ext4)
+#   Partition 1:  512 MiB - EFI System (FAT32)
+#   Partition 2:  Remaining - Linux filesystem (ext4)
 #
 # Requires: sgdisk (gdisk package) or parted as fallback.
 # Must be POSIX-compliant and run as root.

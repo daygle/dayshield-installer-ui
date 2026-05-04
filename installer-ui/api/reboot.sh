@@ -1,5 +1,5 @@
 #!/bin/sh
-# reboot.sh — Reboot the system after successful installation
+# reboot.sh - Reboot the system after successful installation
 # Output: JSON  { "ok": true }   (sent before systemctl reboot)
 #
 # The HTTP server will be killed when the system reboots, so the

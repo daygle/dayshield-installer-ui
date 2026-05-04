@@ -1,5 +1,5 @@
 #!/bin/sh
-# finalize.sh — Unmount target, sync, and clean up temporary installer files
+# finalize.sh - Unmount target, sync, and clean up temporary installer files
 # Query string params: disk=<name>   (e.g. disk=sda)
 # Output: JSON  { "ok": true } | { "error": "message" }
 #

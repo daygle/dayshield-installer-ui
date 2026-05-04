@@ -1,5 +1,5 @@
 #!/bin/sh
-# format.sh — Format partitions created by partition.sh
+# format.sh - Format partitions created by partition.sh
 # Query string params: disk=<name>   (e.g. disk=sda)
 # Output: JSON  { "ok": true } | { "error": "message" }
 #

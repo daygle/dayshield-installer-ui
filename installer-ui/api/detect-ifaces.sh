@@ -1,5 +1,5 @@
 #!/bin/sh
-# detect-ifaces.sh — List available network interfaces (excludes loopback/virtual)
+# detect-ifaces.sh - List available network interfaces (excludes loopback/virtual)
 # Output: JSON  { "ok": true, "ifaces": ["eth0", "enp3s0", ...] }
 #
 # Called by the installer web UI via busybox httpd CGI.
