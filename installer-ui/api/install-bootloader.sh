@@ -161,6 +161,22 @@ if [ "${BOOT_OK}" -ne 1 ]; then
   exit 1
 fi
 
+# ── Ensure kernel and initramfs exist ───────────────────────────
+# If the rootfs extraction didn't include these files, generate them now
+if [ ! -f "${TARGET}/boot/vmlinuz" ] && [ ! -f "${TARGET}/boot/vmlinuz-"* ]; then
+  WARNING_MSG="${WARNING_MSG:+$WARNING_MSG; }Kernel not found in /boot, attempting to generate initramfs"
+  
+  # Try update-initramfs in chroot (Debian/Ubuntu)
+  if chroot "$TARGET" update-initramfs -c -k all >/dev/null 2>&1; then
+    : # Successfully generated
+  else
+    # Try dracut as fallback (if available)
+    if command -v dracut >/dev/null 2>&1; then
+      dracut -r "$TARGET" --force /boot/initrd.img >/dev/null 2>&1 || true
+    fi
+  fi
+fi
+
 # ── Generate grub.cfg ─────────────────────────────────────────────
 # Prefer chroot grub-mkconfig; fall back to host grub-mkconfig
 GRUB_CFG="${TARGET}/boot/grub/grub.cfg"
@@ -184,6 +200,23 @@ if [ ! -s "$GRUB_CFG" ]; then
     nvme*|mmcblk*) ROOT_NODE="/dev/${DISK}p3" ;;
   esac
   ROOT_UUID=$(blkid -s UUID -o value "$ROOT_NODE" 2>/dev/null || true)
+  
+  # Check for actual kernel/initrd files and report findings
+  KERNEL_FILE=""
+  INITRD_FILE=""
+  if [ -f "${TARGET}/boot/vmlinuz" ]; then
+    KERNEL_FILE="/boot/vmlinuz"
+  elif ls "${TARGET}/boot/vmlinuz-"* >/dev/null 2>&1; then
+    KERNEL_FILE=$(ls -1 "${TARGET}/boot/vmlinuz-"* | head -n1 | xargs basename)
+  fi
+  if ls "${TARGET}/boot/initrd.img"* >/dev/null 2>&1; then
+    INITRD_FILE=$(ls -1 "${TARGET}/boot/initrd.img"* | head -n1 | xargs basename)
+  fi
+  
+  if [ -z "$KERNEL_FILE" ] || [ -z "$INITRD_FILE" ]; then
+    WARNING_MSG="${WARNING_MSG:+$WARNING_MSG; }Missing kernel/initrd: kernel=$KERNEL_FILE initrd=$INITRD_FILE"
+  fi
+  
   cat > "$GRUB_CFG" << GRUBCFG
 set default=0
 set timeout=5
