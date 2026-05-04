@@ -29,6 +29,11 @@ function installer() {
     ifaces: [],
     loadingIfaces: false,
 
+    // Access details for remote clients (e.g. Windows browser)
+    accessIps: [],
+    accessUrls: [],
+    loadingAccess: false,
+
     // Progress
     progress: 0,
     configProgress: 0,
@@ -65,6 +70,7 @@ function installer() {
     init() {
       // Load disks eagerly so step 1 is ready when user arrives
       this.loadDisks();
+      this.loadAccessInfo();
     },
 
     /* ── Navigation helpers ─────────────────────────────────── */
@@ -212,6 +218,21 @@ function installer() {
         this.ifaces = [];
       } finally {
         this.loadingIfaces = false;
+      }
+    },
+
+    async loadAccessInfo() {
+      this.loadingAccess = true;
+      try {
+        const data = await this.callApi('detect-access');
+        this.accessIps = data.ips || [];
+        this.accessUrls = data.urls || [];
+      } catch (_) {
+        // Non-fatal: keep installer usable even if access detection fails.
+        this.accessIps = [];
+        this.accessUrls = ['http://127.0.0.1:8080/'];
+      } finally {
+        this.loadingAccess = false;
       }
     },
 

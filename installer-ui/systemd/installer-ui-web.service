@@ -15,6 +15,10 @@ Group=root
 # The -c flag points to the httpd config for CGI execution permissions.
 WorkingDirectory=/installer-ui
 
+# Ensure the installer has a deterministic management IP when no DHCP lease is
+# available (direct-connect installs).
+ExecStartPre=/bin/sh /installer-ui/bootstrap-network.sh
+
 ExecStart=/bin/sh -c '\
   if command -v busybox >/dev/null 2>&1 && busybox httpd --help >/dev/null 2>&1; then \
     exec busybox httpd -f -p 0.0.0.0:8080 -h /installer-ui -c /installer-ui/httpd.conf; \
