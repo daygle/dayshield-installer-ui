@@ -40,6 +40,16 @@ fi
 IFACE=$(first_physical_iface || true)
 [ -z "${IFACE:-}" ] && exit 0
 
+# Installer-only console hygiene:
+# direct-connect and fallback addressing can trigger noisy martian logs in the
+# live environment. Keep the installed system defaults untouched.
+if command -v sysctl >/dev/null 2>&1; then
+  sysctl -q -w net.ipv4.conf.all.log_martians=0 >/dev/null 2>&1 || true
+  sysctl -q -w net.ipv4.conf.default.log_martians=0 >/dev/null 2>&1 || true
+  sysctl -q -w "net.ipv4.conf.${IFACE}.log_martians=0" >/dev/null 2>&1 || true
+  sysctl -q -w "net.ipv4.conf.${IFACE}.rp_filter=2" >/dev/null 2>&1 || true
+fi
+
 # Bring interface up and add fallback address if not already present.
 ip link set "$IFACE" up >/dev/null 2>&1 || true
 if ! ip -4 addr show dev "$IFACE" 2>/dev/null | grep -q '192\.168\.50\.1/24'; then
