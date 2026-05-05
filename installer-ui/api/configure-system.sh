@@ -443,7 +443,13 @@ cat > "${CORE_CFG_DIR}/config.json" << EOF
 }
 EOF
 
-# ── Enable dayshield-core service ─────────────────────────────────
+chmod 600 "${CORE_CFG_DIR}/config.json"
+
+# ── Update Suricata WAN interface ─────────────────────────────────
+SURICATA_YAML="${TARGET}/etc/suricata/suricata.yaml"
+if [ -f "$SURICATA_YAML" ]; then
+  sed -i "s/^\([[:space:]]*interface:\)[[:space:]].*/\1 ${WAN_IFACE}/" "$SURICATA_YAML"
+fi
 SYSTEMD_MULTI_USER="${TARGET}/etc/systemd/system/multi-user.target.wants"
 mkdir -p "$SYSTEMD_MULTI_USER"
 
@@ -461,16 +467,21 @@ resolve_unit_path() {
   fi
 }
 
-SERVICE_SRC="${TARGET}/usr/lib/systemd/system/dayshield-core.service"
-SERVICE_LINK="${SYSTEMD_MULTI_USER}/dayshield-core.service"
-
-if [ -f "$SERVICE_SRC" ]; then
-  ln -sf "/usr/lib/systemd/system/dayshield-core.service" "$SERVICE_LINK" 2>/dev/null || true
+DAYSHIELD_SVC_WARNING=""
+if resolved_path=$(resolve_unit_path "dayshield"); then
+  ln -sf "${resolved_path}" \
+     "${SYSTEMD_MULTI_USER}/dayshield.service" 2>/dev/null || true
+else
+  DAYSHIELD_SVC_WARNING="dayshield.service not found in target rootfs; service will not start on boot"
 fi
 
 # Ensure systemd-resolved remains disabled in favour of unbound.
 mkdir -p "${TARGET}/etc/systemd/system"
 ln -sf /dev/null "${TARGET}/etc/systemd/system/systemd-resolved.service" 2>/dev/null || true
+
+# Point resolv.conf at the local Unbound resolver.
+printf 'nameserver 127.0.0.1\n' > "${TARGET}/etc/resolv.conf"
+chmod 644 "${TARGET}/etc/resolv.conf"
 
 # Also enable required network services.
 for svc in systemd-networkd kea-dhcp4-server nftables unbound; do
@@ -504,4 +515,9 @@ EFI_UUID=$(blkid -s UUID -o value "$EFI_PART" 2>/dev/null || true)
   printf 'tmpfs       /tmp       tmpfs defaults,nosuid,nodev  0 0\n'
 } > "${TARGET}/etc/fstab"
 
-printf '{"ok":true}\n'
+if [ -n "${DAYSHIELD_SVC_WARNING}" ]; then
+  WARN_JSON=$(printf '%s' "${DAYSHIELD_SVC_WARNING}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  printf '{"ok":true,"warning":"%s"}\n' "${WARN_JSON}"
+else
+  printf '{"ok":true}\n'
+fi
