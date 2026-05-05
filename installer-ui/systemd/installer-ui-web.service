@@ -26,12 +26,8 @@ ExecStart=/bin/sh -c '\
     else \
       exec busybox httpd -f -p 0.0.0.0:8080 -h /installer-ui -c /installer-ui/httpd.conf; \
     fi; \
-  elif command -v python3 >/dev/null 2>&1; then \
-    exec python3 -m http.server 8080 --bind 0.0.0.0 --directory /installer-ui; \
-  elif command -v python >/dev/null 2>&1; then \
-    cd /installer-ui && exec python -m SimpleHTTPServer 8080; \
   else \
-    echo "ERROR: No suitable HTTP server found" >&2; \
+    echo "ERROR: busybox httpd is required for CGI script execution" >&2; \
     exit 1; \
   fi'
 

@@ -23,6 +23,20 @@ fi
 
 TARGET="/mnt/target"
 
+# ── Enable firstboot service ──────────────────────────────────────
+# firstboot.service runs once on the first post-install boot to perform
+# final system setup (SSH host key generation, etc.) and then disables itself.
+SYSTEMD_MULTI_USER="${TARGET}/etc/systemd/system/multi-user.target.wants"
+if [ -f "${TARGET}/etc/systemd/system/firstboot.service" ]; then
+  mkdir -p "$SYSTEMD_MULTI_USER"
+  ln -sf "/etc/systemd/system/firstboot.service" \
+     "${SYSTEMD_MULTI_USER}/firstboot.service" 2>/dev/null || true
+elif [ -f "${TARGET}/usr/lib/systemd/system/firstboot.service" ]; then
+  mkdir -p "$SYSTEMD_MULTI_USER"
+  ln -sf "/usr/lib/systemd/system/firstboot.service" \
+     "${SYSTEMD_MULTI_USER}/firstboot.service" 2>/dev/null || true
+fi
+
 # ── Flush all pending writes ──────────────────────────────────────
 sync
 
