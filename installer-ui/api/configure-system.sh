@@ -18,8 +18,11 @@ printf '\r\n'
 # ── Parse CGI query string ────────────────────────────────────────
 parse_param() {
   # Usage: parse_param QUERY_STRING key
-  printf '%s' "$1" | tr '&' '\n' | grep "^${2}=" | head -n1 | sed "s/^${2}=//" | \
-    sed 's/+/ /g' | sed 's/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g' | xargs printf '%b'
+  _raw=$(printf '%s' "$1" | tr '&' '\n' | grep "^${2}=" | head -n1 | sed "s/^${2}=//")
+  _raw=$(printf '%s' "${_raw}" | sed 's/+/ /g')
+  # Decode URL-encoded bytes without xargs so whitespace and shell metacharacters
+  # in passwords are preserved exactly as entered in the web UI.
+  printf '%b' "$(printf '%s' "${_raw}" | sed 's/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g')"
 }
 
 trim_ws() {
@@ -155,6 +158,12 @@ if [ -f "${TARGET}/etc/shadow" ]; then
   sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
 else
   printf '{"error":"/etc/shadow not found in target"}\n'; exit 1
+fi
+
+# Ensure SSH accepts root password login for first access after install.
+if [ -f "${TARGET}/etc/ssh/sshd_config" ]; then
+  sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' "${TARGET}/etc/ssh/sshd_config"
+  sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' "${TARGET}/etc/ssh/sshd_config"
 fi
 
 # ── Configure LAN interface ───────────────────────────────────────
@@ -490,6 +499,25 @@ for svc in systemd-networkd kea-dhcp4-server nftables unbound; do
        "${SYSTEMD_MULTI_USER}/${svc}.service" 2>/dev/null || true
   fi
 done
+
+# Ensure installed systems present a standard tty1 login prompt.
+# The ISO injects installer console units for live boot; disable them on target.
+for unit in installer-ui.service installer-ui-web.service console-wizard.service; do
+  rm -f "${SYSTEMD_MULTI_USER}/${unit}" 2>/dev/null || true
+done
+
+# Restore/ensure local getty targets are enabled for console access.
+mkdir -p "${TARGET}/etc/systemd/system/getty.target.wants"
+if [ -f "${TARGET}/lib/systemd/system/getty@.service" ]; then
+  ln -sf /lib/systemd/system/getty@.service \
+    "${TARGET}/etc/systemd/system/getty.target.wants/getty@tty1.service"
+elif [ -f "${TARGET}/usr/lib/systemd/system/getty@.service" ]; then
+  ln -sf /usr/lib/systemd/system/getty@.service \
+    "${TARGET}/etc/systemd/system/getty.target.wants/getty@tty1.service"
+fi
+
+# Remove any stale masks that could block console logins.
+rm -f "${TARGET}/etc/systemd/system/getty@tty1.service" 2>/dev/null || true
 
 # ── Write /etc/fstab ──────────────────────────────────────────────
 DISK_NODE=$(printf '%s' "$DISK" | sed 's|^/dev/||')
