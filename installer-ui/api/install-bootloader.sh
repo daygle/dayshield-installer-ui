@@ -117,6 +117,7 @@ if [ -d "${TARGET}/usr/lib/grub/x86_64-efi" ] || \
           --efi-directory="$EFI_DIR" \
           --boot-directory="${TARGET}/boot" \
           --bootloader-id="DayShield" \
+          --removable \
           --no-nvram \
           --recheck \
           >/dev/null 2>&1; then
@@ -134,6 +135,7 @@ if [ -d "${TARGET}/usr/lib/grub/x86_64-efi" ] || \
           --efi-directory=/boot/efi \
           --boot-directory=/boot \
           --bootloader-id="DayShield" \
+          --removable \
           --no-nvram \
           --recheck \
           >/dev/null 2>&1; then
