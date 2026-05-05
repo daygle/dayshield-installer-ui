@@ -64,13 +64,13 @@ if [ -z "${HOST_GRUB_INSTALL}" ] && [ -z "${TARGET_GRUB_INSTALL}" ]; then
 fi
 
 # ── Bind-mount pseudo-filesystems for chroot ─────────────────────
-for fs in proc sys dev dev/pts; do
+for fs in proc sys dev dev/pts run; do
   mkdir -p "${TARGET}/${fs}"
   mount --bind "/${fs}" "${TARGET}/${fs}" >/dev/null 2>&1 || true
 done
 
 cleanup() {
-  for fs in dev/pts dev sys proc; do
+  for fs in run dev/pts dev sys proc; do
     umount "${TARGET}/${fs}" 2>/dev/null || true
   done
 }
@@ -191,8 +191,6 @@ elif command -v grub-mkconfig >/dev/null 2>&1; then
   GRUB_DEVICE="$DEV" \
   GRUB_DEVICE_BOOT="$DEV" \
   grub-mkconfig -o "$GRUB_CFG" >/dev/null 2>&1 || true
-elif [ -x "${TARGET}/usr/sbin/grub-mkconfig" ] || [ -x "${TARGET}/usr/bin/grub-mkconfig" ]; then
-  chroot "$TARGET" grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 || true
 fi
 
 # ── Write minimal fallback grub.cfg if missing ───────────────────
@@ -219,14 +217,17 @@ if [ ! -s "$GRUB_CFG" ]; then
     WARNING_MSG="${WARNING_MSG:+$WARNING_MSG; }Missing kernel/initrd: kernel=$KERNEL_FILE initrd=$INITRD_FILE"
   fi
   
+  KERNEL_ENTRY="${KERNEL_FILE:-vmlinuz}"
+  INITRD_ENTRY="${INITRD_FILE:-initrd.img}"
+
   cat > "$GRUB_CFG" << GRUBCFG
 set default=0
 set timeout=5
 
 menuentry "DayShield Firewall OS" {
   search --no-floppy --label --set=root dayshield-root
-  linux  /boot/vmlinuz root=LABEL=dayshield-root rw quiet
-  initrd /boot/initrd.img
+  linux  /boot/${KERNEL_ENTRY} root=LABEL=dayshield-root rw quiet ipv6.disable=1
+  initrd /boot/${INITRD_ENTRY}
 }
 GRUBCFG
   if [ -n "$ROOT_UUID" ]; then
