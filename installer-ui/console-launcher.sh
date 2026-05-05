@@ -110,4 +110,4 @@ while true; do
 done
 
 printf "  Launching command-line installer wizard...\n\n"
-exec /usr/local/bin/dayshield-console
+exec /installer-ui/dayshield-console

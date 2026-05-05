@@ -1,0 +1,396 @@
+#!/bin/sh
+
+set -eu
+
+# Simple console installer wizard for DayShield.
+# Follows the same logical steps as the web installer.
+
+print_header() {
+  printf '\n%s\n' "$1"
+  printf '%s\n' "$(printf '%*s' "${2:-${#1}}" '' | tr ' ' '=')"
+}
+
+urlencode() {
+  # Encode every byte using percent-encoding.
+  printf '%s' "$1" | od -An -tx1 | tr '[:lower:]' '[:upper:]' | tr -s ' \n' '\n' | awk '{printf "%%%s", $1}'
+}
+
+build_query_string() {
+  local qs=""
+  while [ $# -gt 0 ]; do
+    key=$1; value=$2; shift 2
+    [ -n "$qs" ] && qs="${qs}&"
+    qs="${qs}$(urlencode "$key")=$(urlencode "$value")"
+  done
+  printf '%s' "$qs"
+}
+
+run_api_script() {
+  local script=$1
+  shift
+  local qs
+  qs=$(build_query_string "$@")
+  REQUEST_METHOD=GET QUERY_STRING="$qs" /bin/sh "/installer-ui/api/${script}.sh" 2>/dev/null | sed '1,/^$/d'
+}
+
+json_has_ok() {
+  printf '%s' "$1" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
+}
+
+json_extract_error() {
+  printf '%s' "$1" | sed -n 's/.*"error"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+}
+
+run_step() {
+  local name=$1
+  shift
+  print_header "Step: ${name}"
+  response=$(run_api_script "$@" 2>&1) || true
+  if json_has_ok "$response"; then
+    printf '  [OK] %s\n' "$name"
+    return 0
+  fi
+  error=$(json_extract_error "$response")
+  if [ -n "$error" ]; then
+    printf '\nERROR: %s\n' "$error" >&2
+  else
+    printf '\nERROR: unexpected response from %s\n' "$1" >&2
+    printf '%s\n' "$response" >&2
+  fi
+  return 1
+}
+
+read_prompt() {
+  printf '%s' "$1"
+  read -r answer 2>/dev/null || answer=''
+  printf '%s' "$answer"
+}
+
+confirm() {
+  local prompt=$1
+  local default=${2:-yes}
+  local answer
+  while :; do
+    if [ "$default" = yes ]; then
+      answer=$(read_prompt "$prompt [Y/n]: ")
+      answer=${answer:-y}
+    else
+      answer=$(read_prompt "$prompt [y/N]: ")
+      answer=${answer:-n}
+    fi
+    case "${answer}" in
+      y|Y|yes|YES|Yes) return 0 ;; 
+      n|N|no|NO|No) return 1 ;; 
+      *) printf 'Please answer y or n.\n' ;; 
+    esac
+  done
+}
+
+validate_ipv4() {
+  case "$1" in
+    ''|*[!0-9.]*|.*|*.) return 1 ;;
+  esac
+  IFS='.' read -r o1 o2 o3 o4 <<EOF
+$1
+EOF
+  for octet in "$o1" "$o2" "$o3" "$o4"; do
+    case "$octet" in
+      ''|*[!0-9]*) return 1 ;;
+    esac
+    if [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+prompt_nonempty() {
+  local prompt=$1
+  local default=$2
+  local answer
+  while :; do
+    if [ -n "$default" ]; then
+      answer=$(read_prompt "$prompt [$default]: ")
+      answer=${answer:-$default}
+    else
+      answer=$(read_prompt "$prompt: ")
+    fi
+    if [ -n "$answer" ]; then
+      printf '%s' "$answer"
+      return 0
+    fi
+    printf 'Value cannot be empty.\n'
+  done
+}
+
+prompt_password() {
+  local prompt=$1
+  local password
+  if command -v stty >/dev/null 2>&1; then
+    while :; do
+      printf '%s' "$prompt"
+      stty -echo
+      read -r password 2>/dev/null || password=''
+      stty echo
+      printf '\n'
+      if [ -n "$password" ]; then
+        printf '%s' "$password"
+        return 0
+      fi
+      printf 'Password cannot be empty.\n'
+    done
+  else
+    prompt_nonempty "$prompt" ''
+  fi
+}
+
+detect_disks() {
+  lsblk -d -n -o NAME,SIZE,TYPE 2>/dev/null | while IFS= read -r line; do
+    name=$(printf '%s' "$line" | awk '{print $1}')
+    size=$(printf '%s' "$line" | awk '{print $2}')
+    type=$(printf '%s' "$line" | awk '{print $3}')
+    case "$name" in
+      loop*|ram*|rom*|sr*|fd*) continue ;;
+    esac
+    [ "$type" = disk ] || continue
+    printf '%s|%s\n' "$name" "$size"
+  done
+}
+
+choose_disk() {
+  local index=1
+  local disk
+  print_header 'Disk Selection'
+  while :; do
+    disk_list=$(detect_disks)
+    if [ -z "$disk_list" ]; then
+      printf 'No block disks found.\n'
+      exit 1
+    fi
+    printf 'Available disks:\n'
+    printf '%s\n' "$disk_list" | awk -F'|' '{ printf "  %d) /dev/%s (%s)\n", NR, $1, $2 }'
+    if [ -n "$selected_disk" ]; then
+      printf 'Current disk: /dev/%s\n' "$selected_disk"
+    fi
+    answer=$(read_prompt 'Select installation disk number: ')
+    answer=$(printf '%s' "$answer" | tr -d '[:space:]')
+    if [ -z "$answer" ]; then
+      printf 'Please choose a disk number.\n'
+      continue
+    fi
+    disk=$(printf '%s\n' "$disk_list" | awk -F'|' -v n="$answer" 'NR==n{print $1}')
+    if [ -n "$disk" ]; then
+      selected_disk=$disk
+      printf 'Selected /dev/%s\n' "$selected_disk"
+      if confirm 'Use this disk and continue?' yes; then
+        return 0
+      fi
+    else
+      printf 'Invalid selection: %s\n' "$answer"
+    fi
+  done
+}
+
+detect_ifaces() {
+  if [ -d /sys/class/net ]; then
+    for iface_path in /sys/class/net/*; do
+      iface=$(basename "$iface_path")
+      [ "$iface" = lo ] && continue
+      case "$iface" in
+        lo|sit*|tun*|tap*|docker*|br-*|virbr*|veth*|dummy*) continue ;;
+      esac
+      real_path=$(readlink -f "$iface_path" 2>/dev/null || printf '%s' "$iface_path")
+      case "$real_path" in
+        */virtual/*) continue ;;
+      esac
+      printf '%s\n' "$iface"
+    done
+  fi
+}
+
+choose_interface() {
+  local prompt=$1
+  local current=$2
+  local iface
+  while :; do
+    iface_list=$(detect_ifaces)
+    if [ -n "$iface_list" ]; then
+      printf '\nDetected interfaces:\n'
+      printf '%s' "$iface_list" | nl -w2 -s') '
+    else
+      printf '\nNo interfaces detected automatically.\n'
+    fi
+    if [ -n "$current" ]; then
+      iface=$(read_prompt "$prompt [$current]: ")
+      iface=${iface:-$current}
+    else
+      iface=$(read_prompt "$prompt: ")
+    fi
+    iface=$(printf '%s' "$iface" | tr -d '[:space:]')
+    if [ -n "$iface" ]; then
+      printf '%s' "$iface"
+      return 0
+    fi
+  done
+}
+
+prompt_ip() {
+  local prompt=$1
+  local default=$2
+  local answer
+  while :; do
+    answer=$(read_prompt "$prompt${default:+ [$default]}: ")
+    answer=${answer:-$default}
+    if validate_ipv4 "$answer"; then
+      printf '%s' "$answer"
+      return 0
+    fi
+    printf 'Invalid IPv4 address.\n'
+  done
+}
+
+prompt_prefix() {
+  local prompt=$1
+  local default=$2
+  local answer
+  while :; do
+    answer=$(read_prompt "$prompt${default:+ [$default]}: ")
+    answer=${answer:-$default}
+    case "$answer" in
+      [0-9]|[1-2][0-9]|3[0-2]) printf '%s' "$answer"; return 0 ;; 
+      *) printf 'Invalid prefix length (0-32).\n' ;; 
+    esac
+  done
+}
+
+prompt_dhcp_range() {
+  local start_default=$1
+  local end_default=$2
+  local start_ip end_ip
+  start_ip=$(prompt_ip 'Enter DHCP range start' "$start_default")
+  end_ip=$(prompt_ip 'Enter DHCP range end' "$end_default")
+  printf '%s|%s' "$start_ip" "$end_ip"
+}
+
+run_install_pipeline() {
+  print_header 'Installation'
+  if ! run_step 'Creating partitions' partition disk "$selected_disk"; then return 1; fi
+  if ! run_step 'Formatting partitions' format disk "$selected_disk"; then return 1; fi
+  if ! run_step 'Installing root filesystem' install-rootfs disk "$selected_disk"; then return 1; fi
+  if ! run_step 'Installing bootloader' install-bootloader disk "$selected_disk"; then return 1; fi
+  return 0
+}
+
+run_config_pipeline() {
+  print_header 'Configuration'
+  if ! run_step 'Applying system settings' configure-system \
+      disk "$selected_disk" \
+      hostname "$hostname" \
+      password "$password" \
+      iface "$lan_iface" \
+      lan_ip "$lan_ip" \
+      lan_prefix "$lan_prefix" \
+      lan_dhcp_enable "$lan_dhcp_enable" \
+      wan_iface "$wan_iface" \
+      wan_type "$wan_type" \
+      wan_pppoe_user "$wan_pppoe_user" \
+      wan_pppoe_pass "$wan_pppoe_pass" \
+      dhcp_start "$dhcp_start" \
+      dhcp_end "$dhcp_end"; then
+    return 1
+  fi
+  if ! run_step 'Finalizing installation' finalize disk "$selected_disk"; then return 1; fi
+  return 0
+}
+
+main() {
+  print_header 'DayShield Console Installer' 34
+  printf 'This wizard guides you through the same install steps as the web UI.\n'
+  printf '\n'
+  if ! confirm 'Continue with console installer?' yes; then
+    printf 'Aborted.\n'
+    exit 0
+  fi
+
+  choose_disk
+
+  print_header 'Partitioning'
+  printf 'The selected disk will be repartitioned and all existing data will be erased.\n'
+  if ! confirm 'Continue with disk partitioning?' no; then
+    printf 'Installation aborted.\n'
+    exit 0
+  fi
+
+  hostname=$(prompt_nonempty 'Enter hostname' 'dayshield')
+  password=$(prompt_password 'Enter admin password: ')
+
+  lan_iface=$(choose_interface 'Enter LAN interface name' '')
+  lan_ip=$(prompt_ip 'Enter LAN IP address' '192.168.50.1')
+  lan_prefix=$(prompt_prefix 'Enter LAN network prefix length' '24')
+  if confirm 'Enable LAN DHCP?' yes; then
+    lan_dhcp_enable=yes
+    dhcp_range=$(prompt_dhcp_range '192.168.50.10' '192.168.50.100')
+    dhcp_start=$(printf '%s' "$dhcp_range" | cut -d'|' -f1)
+    dhcp_end=$(printf '%s' "$dhcp_range" | cut -d'|' -f2)
+  else
+    lan_dhcp_enable=no
+    dhcp_start=''
+    dhcp_end=''
+  fi
+
+  wan_iface=$(choose_interface 'Enter WAN interface name' '')
+  printf '\nWAN connection types:\n'
+  printf '  1) DHCP\n'
+  printf '  2) PPPoE\n'
+  while :; do
+    case "$(read_prompt 'Select WAN type [1-2]: ')" in
+      1|dhcp|DHCP) wan_type=dhcp; break ;; 
+      2|pppoe|PPPoE) wan_type=pppoe; break ;; 
+      *) printf 'Please enter 1 or 2.\n' ;; 
+    esac
+  done
+  if [ "$wan_type" = pppoe ]; then
+    wan_pppoe_user=$(prompt_nonempty 'Enter PPPoE username' '')
+    wan_pppoe_pass=$(prompt_password 'Enter PPPoE password: ')
+  else
+    wan_pppoe_user=''
+    wan_pppoe_pass=''
+  fi
+
+  print_header 'Summary'
+  printf 'Review the choices below before starting installation.\n'
+  printf '\n'
+  printf 'Disk: /dev/%s\n' "$selected_disk"
+  printf 'Hostname: %s\n' "$hostname"
+  printf 'LAN interface: %s\n' "$lan_iface"
+  printf 'LAN address: %s/%s\n' "$lan_ip" "$lan_prefix"
+  printf 'LAN DHCP: %s\n' "$lan_dhcp_enable"
+  [ "$lan_dhcp_enable" = yes ] && printf 'DHCP range: %s - %s\n' "$dhcp_start" "$dhcp_end"
+  printf 'WAN interface: %s\n' "$wan_iface"
+  printf 'WAN type: %s\n' "$wan_type"
+  [ "$wan_type" = pppoe ] && printf 'PPPoE username: %s\n' "$wan_pppoe_user"
+
+  if ! confirm 'Begin installation now?' no; then
+    printf 'Installation aborted.\n'
+    exit 0
+  fi
+
+  if ! run_install_pipeline; then
+    printf 'Installation pipeline failed. Review errors and try again.\n'
+    exit 1
+  fi
+
+  print_header 'Configuring System'
+  if ! run_config_pipeline; then
+    printf 'Configuration pipeline failed. Review errors and try again.\n'
+    exit 1
+  fi
+
+  print_header 'Complete'
+  printf 'Installation complete on /dev/%s.\n' "$selected_disk"
+  if confirm 'Reboot now?' yes; then
+    REQUEST_METHOD=GET QUERY_STRING='' /bin/sh /installer-ui/api/reboot.sh >/dev/null 2>&1 || true
+  fi
+}
+
+main "$@"
