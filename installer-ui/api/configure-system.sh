@@ -2,9 +2,12 @@
 # configure-system.sh - Apply hostname, admin password, network, and service settings
 # Query string params:
 #   disk=<name>       (e.g. sda)
-#   hostname=<name>   (e.g. dayshield)
-#   password=<pass>   (plain-text; hashed with openssl or chpasswd)
-#   iface=<name>      (e.g. eth0)
+#   hostname=<name>         (e.g. dayshield)
+#   password=<pass>         (plain-text; hashed with openssl or chpasswd)
+#   iface=<name>            (e.g. eth0)
+#   lan_ip=<address>        (e.g. 192.168.1.1)
+#   lan_prefix=<prefix>     (e.g. 24)
+#   lan_dhcp_enable=<yes|no> (e.g. yes)
 # Output: JSON  { "ok": true } | { "error": "message" }
 #
 # Assumes /mnt/target is mounted (install-rootfs + install-bootloader done).
@@ -41,6 +44,7 @@ WAN_PPPOE_USER=$(parse_param "$QS" "wan_pppoe_user")
 WAN_PPPOE_PASS=$(parse_param "$QS" "wan_pppoe_pass")
 LAN_IP=$(parse_param "$QS" "lan_ip")
 LAN_PREFIX=$(parse_param "$QS" "lan_prefix")
+LAN_DHCP_ENABLE=$(parse_param "$QS" "lan_dhcp_enable")
 DHCP_START=$(parse_param "$QS" "dhcp_start")
 DHCP_END=$(parse_param "$QS" "dhcp_end")
 
@@ -51,11 +55,13 @@ WAN_IFACE=$(trim_ws "$WAN_IFACE")
 WAN_TYPE=$(trim_ws "$WAN_TYPE")
 LAN_IP=$(trim_ws "$LAN_IP")
 LAN_PREFIX=$(trim_ws "$LAN_PREFIX")
+LAN_DHCP_ENABLE=$(trim_ws "$LAN_DHCP_ENABLE")
 DHCP_START=$(trim_ws "$DHCP_START")
 DHCP_END=$(trim_ws "$DHCP_END")
 
 [ -n "$LAN_IP" ] || LAN_IP="192.168.1.1"
 [ -n "$LAN_PREFIX" ] || LAN_PREFIX="24"
+[ -n "$LAN_DHCP_ENABLE" ] || LAN_DHCP_ENABLE="yes"
 [ -n "$DHCP_START" ] || DHCP_START="192.168.1.100"
 [ -n "$DHCP_END" ] || DHCP_END="192.168.1.199"
 
@@ -99,13 +105,14 @@ if [ "$WAN_TYPE" = "pppoe" ] && { [ -z "$WAN_PPPOE_USER" ] || [ -z "$WAN_PPPOE_P
   printf '{"error":"PPPoE selected but username/password missing"}\n'; exit 1
 fi
 
-# Installer currently supports a single default /24 LAN plan.
-if [ "$LAN_PREFIX" != "24" ]; then
-  printf '{"error":"Invalid lan_prefix: only 24 is currently supported"}\n'; exit 1
-fi
-
 if ! printf '%s' "$LAN_IP" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
   printf '{"error":"Invalid lan_ip"}\n'; exit 1
+fi
+if ! printf '%s' "$LAN_PREFIX" | grep -Eq '^[0-9]{1,2}$' || [ "$LAN_PREFIX" -lt 1 ] || [ "$LAN_PREFIX" -gt 32 ]; then
+  printf '{"error":"Invalid lan_prefix"}\n'; exit 1
+fi
+if [ "$LAN_DHCP_ENABLE" != "yes" ] && [ "$LAN_DHCP_ENABLE" != "no" ]; then
+  printf '{"error":"Invalid lan_dhcp_enable: expected yes or no"}\n'; exit 1
 fi
 if ! printf '%s' "$DHCP_START" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
   printf '{"error":"Invalid dhcp_start"}\n'; exit 1
@@ -114,8 +121,11 @@ if ! printf '%s' "$DHCP_END" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
   printf '{"error":"Invalid dhcp_end"}\n'; exit 1
 fi
 
-LAN_NET="${LAN_IP%.*}.0"
-SUBNET_CIDR="${LAN_NET}/24"
+SUBNET_CIDR="${LAN_IP}/${LAN_PREFIX}"
+DHCP_ENABLED_JSON="false"
+if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
+  DHCP_ENABLED_JSON="true"
+fi
 
 # Validate hostname (RFC 952 / RFC 1123)
 if ! printf '%s' "$HOSTNAME" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$'; then
@@ -139,25 +149,39 @@ cat > "${TARGET}/etc/hosts" << EOF
 EOF
 
 # ── Set admin (root) password ─────────────────────────────────────
-# Prefer openssl for deterministic hashed password generation
-if command -v openssl >/dev/null 2>&1; then
-  HASH=$(openssl passwd -6 -- "$PASSWORD" 2>/dev/null)
-elif command -v python3 >/dev/null 2>&1; then
-  HASH=$(python3 -c "import crypt,sys; print(crypt.crypt(sys.argv[1], crypt.mksalt(crypt.METHOD_SHA512)))" "$PASSWORD" 2>/dev/null)
+# Prefer using the installed system's chpasswd for the target rootfs when available.
+if printf '%s' "$PASSWORD" | grep -q ':'; then
+  USE_CHPASSWD=0
+elif chroot "$TARGET" command -v chpasswd >/dev/null 2>&1; then
+  if ! printf '%s\n' "root:${PASSWORD}" | chroot "$TARGET" chpasswd >/dev/null 2>&1; then
+    USE_CHPASSWD=0
+  else
+    USE_CHPASSWD=1
+  fi
 else
-  printf '{"error":"Cannot hash password: neither openssl nor python3 found"}\n'; exit 1
+  USE_CHPASSWD=0
 fi
 
-if [ -z "$HASH" ]; then
-  printf '{"error":"Password hashing failed"}\n'; exit 1
-fi
+if [ "$USE_CHPASSWD" -eq 0 ]; then
+  # Fall back to deterministic host-side hashing and direct shadow replacement.
+  if command -v openssl >/dev/null 2>&1; then
+    HASH=$(openssl passwd -6 -- "$PASSWORD" 2>/dev/null)
+  elif command -v python3 >/dev/null 2>&1; then
+    HASH=$(python3 -c "import crypt,sys; print(crypt.crypt(sys.argv[1], crypt.mksalt(crypt.METHOD_SHA512)))" "$PASSWORD" 2>/dev/null)
+  else
+    printf '{"error":"Cannot hash password: neither openssl nor python3 found"}\n'; exit 1
+  fi
 
-# Update /etc/shadow - replace root entry
-if [ -f "${TARGET}/etc/shadow" ]; then
-  SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
-  sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
-else
-  printf '{"error":"/etc/shadow not found in target"}\n'; exit 1
+  if [ -z "$HASH" ]; then
+    printf '{"error":"Password hashing failed"}\n'; exit 1
+  fi
+
+  if [ -f "${TARGET}/etc/shadow" ]; then
+    SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
+    sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
+  else
+    printf '{"error":"/etc/shadow not found in target"}\n'; exit 1
+  fi
 fi
 
 # Ensure SSH accepts root password login for first access after install.
@@ -179,7 +203,7 @@ WAN_IFACE=${WAN_IFACE}
 WAN_TYPE=${WAN_TYPE}
 LAN_IP=${LAN_IP}
 LAN_PREFIX=${LAN_PREFIX}
-LAN_DHCP_ENABLE=yes
+LAN_DHCP_ENABLE=${LAN_DHCP_ENABLE}
 LAN_DHCP_START=${DHCP_START}
 LAN_DHCP_END=${DHCP_END}
 EOF
@@ -421,7 +445,7 @@ cat > "${CORE_CFG_DIR}/config.json" << EOF
   "nat": null,
   "dns": null,
   "dhcp": {
-    "enabled": true,
+    "enabled": ${DHCP_ENABLED_JSON},
     "interface": "${IFACE}",
     "scopes": [
       {

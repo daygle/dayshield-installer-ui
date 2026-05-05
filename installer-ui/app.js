@@ -27,6 +27,11 @@ function installer() {
     passwordConfirm: '',
     iface: '',
     wanIface: '',
+    lanIp: '192.168.1.1',
+    lanPrefix: '24',
+    lanDhcpEnabled: true,
+    dhcpStart: '192.168.1.100',
+    dhcpEnd: '192.168.1.199',
     wanType: 'dhcp',
     wanPppoeUser: '',
     wanPppoePass: '',
@@ -100,15 +105,25 @@ function installer() {
         case 1: return !!this.selectedDisk;
         case 2: return !!this.selectedDisk;
         case 3: return false; // automated - driven by runInstallPipeline()
-        case 4: return (
-          this.hostname.length > 0 &&
-          this.password.length >= 8 &&
-          this.password === this.passwordConfirm &&
-          !!lan &&
-          !!wan &&
-          wan !== lan &&
-          (this.wanType !== 'pppoe' || (!!this.wanPppoeUser && !!this.wanPppoePass))
-        );
+        case 4: {
+          const ipValid = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/.test((this.lanIp || '').trim());
+          const prefix = Number((this.lanPrefix || '').trim());
+          const prefixValid = Number.isInteger(prefix) && prefix >= 1 && prefix <= 32;
+          const dhcpStartValid = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/.test((this.dhcpStart || '').trim());
+          const dhcpEndValid = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/.test((this.dhcpEnd || '').trim());
+          return (
+            this.hostname.length > 0 &&
+            this.password.length >= 8 &&
+            this.password === this.passwordConfirm &&
+            !!lan &&
+            !!wan &&
+            ipValid &&
+            prefixValid &&
+            wan !== lan &&
+            (this.wanType !== 'pppoe' || (!!this.wanPppoeUser && !!this.wanPppoePass)) &&
+            (!this.lanDhcpEnabled || (dhcpStartValid && dhcpEndValid))
+          );
+        }
         case 5: return true;
         case 6: return false; // automated
         case 7: return true;
@@ -403,9 +418,14 @@ function installer() {
         password:        this.password,
         iface:           (this.iface || '').trim(),
         wan_iface:       (this.wanIface || '').trim(),
+        lan_ip:          (this.lanIp || '').trim(),
+        lan_prefix:      (this.lanPrefix || '').trim(),
+        lan_dhcp_enable: this.lanDhcpEnabled ? 'yes' : 'no',
         wan_type:        this.wanType,
         wan_pppoe_user:  this.wanPppoeUser,
         wan_pppoe_pass:  this.wanPppoePass,
+        dhcp_start:      (this.dhcpStart || '').trim(),
+        dhcp_end:        (this.dhcpEnd || '').trim(),
       });
     },
 
