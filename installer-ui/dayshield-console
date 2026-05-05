@@ -10,6 +10,11 @@ print_header() {
   printf '%s\n' "$(printf '%*s' "${2:-${#1}}" '' | tr ' ' '=')"
 }
 
+quit_wizard() {
+  printf '\nInstallation aborted.\n'
+  exit 0
+}
+
 urlencode() {
   # Encode every byte using percent-encoding.
   printf '%s' "$1" | od -An -tx1 | tr '[:lower:]' '[:upper:]' | tr -s ' \n' '\n' | awk '{printf "%%%s", $1}'
@@ -61,8 +66,13 @@ run_step() {
 }
 
 read_prompt() {
-  printf '%s' "$1"
+  local prompt=$1
+  local allow_quit=${2:-no}
+  printf '%s' "$prompt"
   read -r answer 2>/dev/null || answer=''
+  if [ "$allow_quit" = yes ] && { [ "$answer" = q ] || [ "$answer" = Q ]; }; then
+    quit_wizard
+  fi
   printf '%s' "$answer"
 }
 
@@ -72,10 +82,10 @@ confirm() {
   local answer
   while :; do
     if [ "$default" = yes ]; then
-      answer=$(read_prompt "$prompt [Y/n]: ")
+      answer=$(read_prompt "$prompt [Y/n]: " yes)
       answer=${answer:-y}
     else
-      answer=$(read_prompt "$prompt [y/N]: ")
+      answer=$(read_prompt "$prompt [y/N]: " yes)
       answer=${answer:-n}
     fi
     case "${answer}" in
@@ -110,10 +120,10 @@ prompt_nonempty() {
   local answer
   while :; do
     if [ -n "$default" ]; then
-      answer=$(read_prompt "$prompt [$default]: ")
+      answer=$(read_prompt "$prompt [$default]: " yes)
       answer=${answer:-$default}
     else
-      answer=$(read_prompt "$prompt: ")
+      answer=$(read_prompt "$prompt: " yes)
     fi
     if [ -n "$answer" ]; then
       printf '%s' "$answer"
@@ -172,7 +182,7 @@ choose_disk() {
     if [ -n "$selected_disk" ]; then
       printf 'Current disk: /dev/%s\n' "$selected_disk"
     fi
-    answer=$(read_prompt 'Select installation disk number: ')
+    answer=$(read_prompt 'Select installation disk number (or Q to quit): ' yes)
     answer=$(printf '%s' "$answer" | tr -d '[:space:]')
     if [ -z "$answer" ]; then
       printf 'Please choose a disk number.\n'
@@ -221,10 +231,10 @@ choose_interface() {
       printf '\nNo interfaces detected automatically.\n'
     fi
     if [ -n "$current" ]; then
-      iface=$(read_prompt "$prompt [$current]: ")
+      iface=$(read_prompt "$prompt [$current] (Q to quit): " yes)
       iface=${iface:-$current}
     else
-      iface=$(read_prompt "$prompt: ")
+      iface=$(read_prompt "$prompt (Q to quit): " yes)
     fi
     iface=$(printf '%s' "$iface" | tr -d '[:space:]')
     if [ -n "$iface" ]; then
@@ -239,7 +249,7 @@ prompt_ip() {
   local default=$2
   local answer
   while :; do
-    answer=$(read_prompt "$prompt${default:+ [$default]}: ")
+    answer=$(read_prompt "$prompt${default:+ [$default]}: " yes)
     answer=${answer:-$default}
     if validate_ipv4 "$answer"; then
       printf '%s' "$answer"
@@ -254,7 +264,7 @@ prompt_prefix() {
   local default=$2
   local answer
   while :; do
-    answer=$(read_prompt "$prompt${default:+ [$default]}: ")
+    answer=$(read_prompt "$prompt${default:+ [$default]}: " yes)
     answer=${answer:-$default}
     case "$answer" in
       [0-9]|[1-2][0-9]|3[0-2]) printf '%s' "$answer"; return 0 ;; 
@@ -306,6 +316,7 @@ run_config_pipeline() {
 main() {
   print_header 'DayShield Console Installer' 34
   printf 'This wizard guides you through the same install steps as the web UI.\n'
+  printf 'Press Q at any prompt to quit.\n'
   printf '\n'
   if ! confirm 'Continue with console installer?' yes; then
     printf 'Aborted.\n'
@@ -343,7 +354,7 @@ main() {
   printf '  1) DHCP\n'
   printf '  2) PPPoE\n'
   while :; do
-    case "$(read_prompt 'Select WAN type [1-2]: ')" in
+    case "$(read_prompt 'Select WAN type [1-2] (Q to quit): ' yes)" in
       1|dhcp|DHCP) wan_type=dhcp; break ;; 
       2|pppoe|PPPoE) wan_type=pppoe; break ;; 
       *) printf 'Please enter 1 or 2.\n' ;; 
