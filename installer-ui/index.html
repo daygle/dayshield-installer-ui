@@ -466,6 +466,10 @@
             <span class="summary-label">LAN DHCP</span>
             <span class="summary-value" x-text="lanDhcpEnabled ? 'enabled' : 'disabled'"></span>
           </div>
+          <div class="summary-row" x-show="lanDhcpEnabled">
+            <span class="summary-label">DHCP pool</span>
+            <span class="summary-value" x-text="dhcpStart + ' - ' + dhcpEnd"></span>
+          </div>
           <div class="summary-row">
             <span class="summary-label">WAN interface</span>
             <span class="summary-value" x-text="(wanIface || '').trim() || '(not set)'"></span>
