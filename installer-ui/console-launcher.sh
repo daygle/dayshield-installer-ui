@@ -63,16 +63,23 @@ while true; do
   printf "  Web Installer runs on port 8443 and needs a JS-capable browser.\n\n"
 
   if [ -n "$LAN_ADDRS" ]; then
-    printf "  Web Installer LAN interface (second NIC) and IP:\n"
     printf "%s\n" "$LAN_ADDRS" | while read -r iface cidr; do
-      printf "    %s  %s\n" "$iface" "${cidr%%/*}"
+      ip=${cidr%%/*}
+      printf "    %s  %s\n" "$iface" "$ip"
     done
     printf "\n"
-  fi
 
-  printf "  Web Installer URL:\n"
-  printf "    http://192.168.50.1:8443/\n"
-  printf "\n"
+    printf "  Web Installer URLs:\n"
+    printf "%s\n" "$LAN_ADDRS" | while read -r iface cidr; do
+      ip=${cidr%%/*}
+      printf "    http://%s:8443/\n" "$ip"
+    done
+    printf "\n"
+  else
+    printf "  Web Installer URL:\n"
+    printf "    http://127.0.0.1:8443/\n"
+    printf "\n"
+  fi
 
   printf "  Command-Line Installer options:\n"
   printf "    [C] Start command-line installer wizard\n"

@@ -93,11 +93,16 @@ run_step_post() {
   return 1
 }
 
+trim() {
+  printf '%s' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
 read_prompt() {
   local prompt=$1
   local allow_quit=${2:-no}
   printf '%s' "$prompt"
   read -r answer 2>/dev/null || answer=''
+  answer=$(trim "$answer")
   if [ "$allow_quit" = yes ] && { [ "$answer" = q ] || [ "$answer" = Q ]; }; then
     quit_wizard
   fi
@@ -116,6 +121,7 @@ confirm() {
       answer=$(read_prompt "$prompt [y/N]: " yes)
       answer=${answer:-n}
     fi
+    answer=$(trim "$answer")
     case "${answer}" in
       y|Y|yes|YES|Yes) return 0 ;; 
       n|N|no|NO|No) return 1 ;; 
