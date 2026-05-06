@@ -34,6 +34,17 @@ trim_ws() {
 }
 
 QS="${QUERY_STRING:-}"
+if [ "${REQUEST_METHOD:-}" = "POST" ] && [ -n "${CONTENT_LENGTH:-}" ]; then
+  POST_DATA=$(dd bs=1 count="${CONTENT_LENGTH}" 2>/dev/null || true)
+  if [ -n "$POST_DATA" ]; then
+    if [ -n "$QS" ]; then
+      QS="${QS}&${POST_DATA}"
+    else
+      QS="$POST_DATA"
+    fi
+  fi
+fi
+
 DISK=$(parse_param "$QS" "disk")
 HOSTNAME=$(parse_param "$QS" "hostname")
 PASSWORD=$(parse_param "$QS" "password")

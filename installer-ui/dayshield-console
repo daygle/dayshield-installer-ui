@@ -38,6 +38,15 @@ run_api_script() {
   REQUEST_METHOD=GET QUERY_STRING="$qs" /bin/sh "/installer-ui/api/${script}.sh" 2>/dev/null | sed '1,/^$/d'
 }
 
+run_api_script_post() {
+  local script=$1
+  shift
+  local qs len
+  qs=$(build_query_string "$@")
+  len=$(printf '%s' "$qs" | wc -c)
+  printf '%s' "$qs" | REQUEST_METHOD=POST CONTENT_LENGTH="$len" /bin/sh "/installer-ui/api/${script}.sh" 2>/dev/null | sed '1,/^$/d'
+}
+
 json_has_ok() {
   printf '%s' "$1" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'
 }
@@ -51,6 +60,25 @@ run_step() {
   shift
   print_header "Step: ${name}"
   response=$(run_api_script "$@" 2>&1) || true
+  if json_has_ok "$response"; then
+    printf '  [OK] %s\n' "$name"
+    return 0
+  fi
+  error=$(json_extract_error "$response")
+  if [ -n "$error" ]; then
+    printf '\nERROR: %s\n' "$error" >&2
+  else
+    printf '\nERROR: unexpected response from %s\n' "$1" >&2
+    printf '%s\n' "$response" >&2
+  fi
+  return 1
+}
+
+run_step_post() {
+  local name=$1
+  shift
+  print_header "Step: ${name}"
+  response=$(run_api_script_post "$@" 2>&1) || true
   if json_has_ok "$response"; then
     printf '  [OK] %s\n' "$name"
     return 0
@@ -312,7 +340,7 @@ run_install_pipeline() {
 
 run_config_pipeline() {
   print_header 'Configuration'
-  if ! run_step 'Applying system settings' configure-system \
+  if ! run_step_post 'Applying system settings' configure-system \
       disk "$selected_disk" \
       hostname "$hostname" \
       password "$password" \

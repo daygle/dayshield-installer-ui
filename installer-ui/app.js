@@ -200,12 +200,23 @@ function installer() {
      * @returns {object}        - parsed response JSON
      * @throws  {Error}         - if network or script error
      */
-    async callApi(script, params = {}) {
+    async callApi(script, params = {}, method = 'GET') {
       const qs = new URLSearchParams(params).toString();
-      const url = `/api/${script}.sh${qs ? '?' + qs : ''}`;
+      const url = `/api/${script}.sh${method === 'GET' && qs ? '?' + qs : ''}`;
+      const fetchOptions = {
+        method,
+      };
+
+      if (method === 'POST') {
+        fetchOptions.headers = {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        };
+        fetchOptions.body = qs;
+      }
+
       let res;
       try {
-        res = await fetch(url);
+        res = await fetch(url, fetchOptions);
       } catch (e) {
         throw new Error(`Network error calling ${script}: ${e.message}`);
       }
@@ -435,7 +446,7 @@ function installer() {
         wan_pppoe_pass:  this.wanPppoePass,
         dhcp_start:      (this.dhcpStart || '').trim(),
         dhcp_end:        (this.dhcpEnd || '').trim(),
-      });
+      }, 'POST');
     },
 
     async runFinalize() {
