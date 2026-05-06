@@ -229,6 +229,16 @@ define WAN_IF = ${WAN_IFACE}
 define LAN_IF = ${IFACE}
 EOF
 
+# If the management UI assets are already installed in the rootfs, expose
+# the UI on port 8443 by redirecting external port 8443 to the core API/UI
+# server on port 3000.
+if [ -f "${TARGET}/usr/local/share/dayshield-ui/index.html" ]; then
+  mkdir -p "${TARGET}/etc/nftables.d"
+  cat > "${TARGET}/etc/nftables.d/dayshield-ui-redirect.nft" << 'EOF'
+add rule ip nat prerouting tcp dport 8443 redirect to :3000
+EOF
+fi
+
 # Also write a systemd-networkd .network file if applicable
 NETWORKD_DIR="${TARGET}/etc/systemd/network"
 mkdir -p "$NETWORKD_DIR"
