@@ -160,7 +160,10 @@ cat > "${TARGET}/etc/hosts" << EOF
 EOF
 
 # ── Set admin (root) password ─────────────────────────────────────
-# Prefer using the installed system's chpasswd for the target rootfs when available.
+# Prefer using the installed system's chpasswd for the target rootfs when available.# Lock any existing root password before applying the new one.
+if chroot "$TARGET" command -v passwd >/dev/null 2>&1; then
+  chroot "$TARGET" passwd -l root >/dev/null 2>&1 || true
+fi
 if printf '%s' "$PASSWORD" | grep -q ':'; then
   USE_CHPASSWD=0
 elif chroot "$TARGET" command -v chpasswd >/dev/null 2>&1; then
