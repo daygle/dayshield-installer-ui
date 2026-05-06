@@ -39,7 +39,16 @@ while IFS= read -r line; do
   size_safe=$(printf '%s' "$size" | sed 's/"/\\"/g')
   type_safe=$(printf '%s' "$type" | sed 's/"/\\"/g')
 
-  entry="{\"name\":\"${name_safe}\",\"size\":\"${size_safe}\",\"type\":\"${type_safe}\"}"
+  # Detect if the disk already has partitions or filesystem signatures.
+  part_count=$(lsblk -n -o NAME,TYPE "/dev/${name}" 2>/dev/null | awk '$2 == "part" {count++} END {print count+0}')
+  has_data=false
+  if [ "$part_count" -gt 0 ]; then
+    has_data=true
+  elif command -v blkid >/dev/null 2>&1 && blkid -o value "/dev/${name}" >/dev/null 2>&1; then
+    has_data=true
+  fi
+
+  entry="{\"name\":\"${name_safe}\",\"size\":\"${size_safe}\",\"type\":\"${type_safe}\",\"has_data\":${has_data}}"
 
   if [ "$FIRST" -eq 1 ]; then
     DISKS_JSON="${entry}"

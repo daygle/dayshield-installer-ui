@@ -161,9 +161,13 @@
           </p>
           <button @click="loadAccessInfo()" class="btn-secondary mt-3 text-xs">Refresh Addresses</button>
         </div>
-        <div class="bg-yellow-900/40 border border-yellow-700 rounded-lg p-4 text-left text-sm text-yellow-300 max-w-md w-full mb-8">
+        <div x-show="selectedDiskInfo && selectedDiskInfo.has_data" class="bg-yellow-900/40 border border-yellow-700 rounded-lg p-4 text-left text-sm text-yellow-300 max-w-md w-full mb-8">
           <p class="font-semibold mb-1">⚠ Warning</p>
           <p>This process will <strong>erase all data</strong> on the selected disk. Ensure you have backed up any important data before continuing.</p>
+        </div>
+        <div x-show="selectedDiskInfo && !selectedDiskInfo.has_data" class="bg-blue-900/30 border border-blue-700 rounded-lg p-4 text-left text-sm text-blue-200 max-w-md w-full mb-8">
+          <p class="font-semibold mb-1">Notice</p>
+          <p>The selected disk appears to be blank. It will be prepared for installation.</p>
         </div>
         <p class="text-gray-500 text-xs">Press <kbd class="bg-gray-800 px-2 py-0.5 rounded font-mono">Next</kbd> to begin</p>
       </div>
@@ -171,7 +175,7 @@
       <!-- ── Step 1: Disk Selection ──────────────────────────── -->
       <div x-show="step === 1" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
         <h2 class="text-2xl font-bold text-white mb-2">Select Installation Disk</h2>
-        <p class="text-gray-400 text-sm mb-6">Choose the disk where DayShield will be installed. All existing data will be erased.</p>
+        <p class="text-gray-400 text-sm mb-6" x-text="selectedDiskInfo ? (selectedDiskInfo.has_data ? 'Choose the disk where DayShield will be installed. Existing partitions or data on the selected disk will be erased.' : 'Choose the disk where DayShield will be installed. The selected disk appears to be blank.') : 'Choose the disk where DayShield will be installed.'"></p>
 
         <div x-show="loadingDisks" class="flex items-center gap-3 text-gray-400 py-8">
           <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">

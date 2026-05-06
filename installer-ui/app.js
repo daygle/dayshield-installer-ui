@@ -102,6 +102,10 @@ function installer() {
       return 'bg-gray-800 text-gray-600';
     },
 
+    selectedDiskInfo() {
+      return this.disks.find(d => d.name === this.selectedDisk) || null;
+    },
+
     canProceed() {
       const lan = (this.iface || '').trim();
       const wan = (this.wanIface || '').trim();

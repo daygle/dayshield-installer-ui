@@ -178,7 +178,7 @@ choose_disk() {
       exit 1
     fi
     printf 'Available disks:\n'
-    printf '%s\n' "$disk_list" | awk -F'|' '{ printf "  %d) /dev/%s (%s)\n", NR, $1, $2 }'
+    printf '%s\n' "$disk_list" | awk -F'|' '{ printf "  %d) /dev/%s (%s)%s\n", NR, $1, $2, $3 == "true" ? " [contains data]" : "" }'
     if [ -n "$selected_disk" ]; then
       printf 'Current disk: /dev/%s\n' "$selected_disk"
     fi
@@ -189,9 +189,16 @@ choose_disk() {
       continue
     fi
     disk=$(printf '%s\n' "$disk_list" | awk -F'|' -v n="$answer" 'NR==n{print $1}')
+    has_data=$(printf '%s\n' "$disk_list" | awk -F'|' -v n="$answer" 'NR==n{print $3}')
     if [ -n "$disk" ]; then
       selected_disk=$disk
+      selected_disk_has_data=$has_data
       printf 'Selected /dev/%s\n' "$selected_disk"
+      if [ "$selected_disk_has_data" = true ]; then
+        printf 'Warning: the selected disk contains existing partitions or data and will be erased.\n'
+      else
+        printf 'The selected disk appears blank and will be prepared for installation.\n'
+      fi
       if confirm 'Use this disk and continue?' yes; then
         return 0
       fi
