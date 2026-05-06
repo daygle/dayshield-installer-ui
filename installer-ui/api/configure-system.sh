@@ -22,10 +22,25 @@ printf '\r\n'
 parse_param() {
   # Usage: parse_param QUERY_STRING key
   _raw=$(printf '%s' "$1" | tr '&' '\n' | grep "^${2}=" | head -n1 | sed "s/^${2}=//")
-  _raw=$(printf '%s' "${_raw}" | sed 's/+/ /g')
-  # Decode URL-encoded bytes without xargs so whitespace and shell metacharacters
-  # in passwords are preserved exactly as entered in the web UI.
-  printf '%b' "$(printf '%s' "${_raw}" | sed 's/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g')"
+  # Decode URL-encoded bytes portably: awk handles + as space and %XX as the
+  # corresponding byte, without relying on the non-POSIX \x printf extension
+  # that is silently broken on dash (the default /bin/sh on Debian/Ubuntu).
+  printf '%s' "${_raw}" | awk '
+    BEGIN {
+      for (i = 1; i <= 255; i++) {
+        dec[sprintf("%02x", i)] = sprintf("%c", i)
+        dec[sprintf("%02X", i)] = sprintf("%c", i)
+      }
+    }
+    {
+      gsub(/\+/, " ")
+      out = ""
+      while (match($0, /%[0-9A-Fa-f][0-9A-Fa-f]/)) {
+        out = out substr($0, 1, RSTART - 1) dec[substr($0, RSTART + 1, 2)]
+        $0  = substr($0, RSTART + RLENGTH)
+      }
+      printf "%s%s", out, $0
+    }'
 }
 
 trim_ws() {
