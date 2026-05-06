@@ -49,6 +49,7 @@ function installer() {
     fallbackIface: '',
     fallbackAssigned: false,
     loadingAccess: false,
+    showConnectHelp: false,
 
     // Progress
     progress: 0,
@@ -84,6 +85,8 @@ function installer() {
 
     /* ── Lifecycle ──────────────────────────────────────────── */
     init() {
+      // Only show remote-access instructions when the installer UI is opened locally.
+      this.showConnectHelp = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
       // Load disks eagerly so step 1 is ready when user arrives
       this.loadDisks();
       this.loadAccessInfo();
