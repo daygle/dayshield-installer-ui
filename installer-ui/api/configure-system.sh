@@ -27,7 +27,7 @@ parse_param() {
   # that is silently broken on dash (the default /bin/sh on Debian/Ubuntu).
   printf '%s' "${_raw}" | awk '
     BEGIN {
-      for (i = 1; i <= 255; i++) {
+      for (i = 0; i <= 255; i++) {
         dec[sprintf("%02x", i)] = sprintf("%c", i)
         dec[sprintf("%02X", i)] = sprintf("%c", i)
       }
