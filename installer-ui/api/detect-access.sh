@@ -3,7 +3,7 @@
 # Output: JSON {
 #   "ok": true,
 #   "ips": ["x.x.x.x"],
-#   "urls": ["http://x.x.x.x:8080/"],
+#   "urls": ["http://x.x.x.x:8443/"],
 #   "fallback_iface": "ens19",
 #   "fallback_assigned": true
 # }
@@ -61,7 +61,7 @@ if command -v ip >/dev/null 2>&1; then
     esac
 
     ip_safe=$(printf '%s' "$ip4" | sed 's/"/\\"/g')
-    url_safe=$(printf 'http://%s:8080/' "$ip4" | sed 's/"/\\"/g')
+    url_safe=$(printf 'http://%s:8443/' "$ip4" | sed 's/"/\\"/g')
 
     if [ "$FIRST_IP" -eq 1 ]; then
       IPS_JSON="\"${ip_safe}\""

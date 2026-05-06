@@ -1,5 +1,5 @@
 [Unit]
-Description=DayShield Installer Web UI (busybox httpd on port 8080)
+Description=DayShield Installer Web UI (busybox httpd on port 8443)
 Documentation=https://github.com/daygle/dayshield-installer-ui
 After=network.target
 Before=installer-ui.service
@@ -19,17 +19,7 @@ WorkingDirectory=/installer-ui
 # available (direct-connect installs).
 ExecStartPre=/bin/sh /installer-ui/bootstrap-network.sh
 
-ExecStart=/bin/sh -c '\
-  if command -v busybox >/dev/null 2>&1 && busybox --list 2>/dev/null | grep -qx httpd; then \
-    if busybox httpd --help 2>&1 | grep -q -- "-t"; then \
-      exec busybox httpd -f -p 0.0.0.0:8080 -h /installer-ui -c /installer-ui/httpd.conf -t 1800; \
-    else \
-      exec busybox httpd -f -p 0.0.0.0:8080 -h /installer-ui -c /installer-ui/httpd.conf; \
-    fi; \
-  else \
-    echo "ERROR: busybox httpd is required for CGI script execution" >&2; \
-    exit 1; \
-  fi'
+ExecStart=/bin/sh /installer-ui/start-httpd.sh
 
 Restart=on-failure
 RestartSec=2s

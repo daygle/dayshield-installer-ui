@@ -3,7 +3,7 @@
  *
  * Registers the global `installer()` Alpine component.
  * All backend calls hit local shell scripts served by busybox httpd
- * on http://127.0.0.1:8080  (same origin when loaded from the web UI)
+ * on http://127.0.0.1:8443  (same origin when loaded from the web UI)
  * or via a CGI-like path /api/<script>.sh when using the web service.
  *
  * POSIX scripts return either:
