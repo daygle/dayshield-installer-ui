@@ -54,14 +54,13 @@ installer-ui/
 
 No external resources are fetched at install time.
 
-Required files before ISO build:
+The required offline bundles are committed in the repository at:
 
-| File | Description |
-|------|-------------|
-| installer-ui/alpine.min.js | Alpine reactive framework bundle |
-| installer-ui/tailwind.min.js | Tailwind runtime bundle |
+- `installer-ui/alpine.min.js`
+- `installer-ui/tailwind.min.js`
 
-Fetch/update both bundles (run on build host when refreshing versions):
+Refresh both bundles only when you want to update the embedded Alpine or
+Tailwind runtime:
 
 ```bash
 curl -Lo installer-ui/alpine.min.js \
