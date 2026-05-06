@@ -126,6 +126,7 @@ function installer() {
           return (
             this.hostname.length > 0 &&
             this.password.length >= 8 &&
+            !this.passwordError() &&
             this.password === this.passwordConfirm &&
             !!lan &&
             !!wan &&
@@ -141,6 +142,15 @@ function installer() {
         case 7: return true;
         default: return false;
       }
+    },
+
+    passwordError() {
+      const p = this.password;
+      if (p.length < 8) return '';
+      if (!/[A-Z]/.test(p)) return 'Password must contain at least one uppercase letter.';
+      if (!/[a-z]/.test(p)) return 'Password must contain at least one lowercase letter.';
+      if (!/[^a-zA-Z]/.test(p)) return 'Password must contain at least one digit or special character.';
+      return '';
     },
 
     nextLabel() {
