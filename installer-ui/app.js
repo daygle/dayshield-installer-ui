@@ -466,10 +466,15 @@ function installer() {
         if (this.rebootCountdown <= 1) {
           clearInterval(this.rebootTimer);
           this.rebootTimer = null;
+          this.rebootCountdown = 0;
           try {
             await this.callApi('reboot');
-          } catch (_) {
-            // Reboot kills the server; network error is expected
+          } catch (e) {
+            // Reboot kills the server; network error is expected.
+            // If the request fails before reboot starts, show the error.
+            if (!/network error/i.test(e.message)) {
+              this.error = e.message;
+            }
           }
           return;
         }
