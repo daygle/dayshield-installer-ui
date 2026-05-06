@@ -182,6 +182,20 @@ prompt_password() {
   fi
 }
 
+prompt_password_confirm() {
+  local prompt=$1
+  local password confirm
+  while :; do
+    password=$(prompt_password "$prompt")
+    confirm=$(prompt_password 'Confirm password: ')
+    if [ "$password" = "$confirm" ]; then
+      printf '%s' "$password"
+      return 0
+    fi
+    printf 'Passwords do not match. Please try again.\n'
+  done
+}
+
 detect_disks() {
   lsblk -d -n -o NAME,SIZE,TYPE 2>/dev/null | while IFS= read -r line; do
     name=$(printf '%s' "$line" | awk '{print $1}')
@@ -380,7 +394,7 @@ main() {
   fi
 
   hostname=$(prompt_nonempty 'Enter hostname' 'dayshield')
-  password=$(prompt_password 'Enter admin password: ')
+  password=$(prompt_password_confirm 'Enter admin password: ')
 
   lan_iface=$(choose_interface 'Enter LAN interface name' '')
   lan_ip=$(prompt_ip 'Enter LAN IP address' '192.168.50.1')
