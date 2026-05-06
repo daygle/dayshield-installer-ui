@@ -282,6 +282,18 @@ prompt_dhcp_range() {
   printf '%s|%s' "$start_ip" "$end_ip"
 }
 
+countdown_reboot() {
+  local secs=${1:-10}
+  printf '\nRemove the installation media (ISO, CD/DVD, USB) now.\n'
+  while [ $secs -gt 0 ]; do
+    printf '\rRebooting in %2s seconds... ' "$secs"
+    sleep 1
+    secs=$((secs - 1))
+  done
+  printf '\rRebooting now...                      \n'
+  REQUEST_METHOD=GET QUERY_STRING='' /bin/sh /installer-ui/api/reboot.sh >/dev/null 2>&1 || true
+}
+
 run_install_pipeline() {
   print_header 'Installation'
   if ! run_step 'Creating partitions' partition disk "$selected_disk"; then return 1; fi
@@ -400,7 +412,7 @@ main() {
   print_header 'Complete'
   printf 'Installation complete on /dev/%s.\n' "$selected_disk"
   if confirm 'Reboot now?' yes; then
-    REQUEST_METHOD=GET QUERY_STRING='' /bin/sh /installer-ui/api/reboot.sh >/dev/null 2>&1 || true
+    countdown_reboot 10
   fi
 }
 

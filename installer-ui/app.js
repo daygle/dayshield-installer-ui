@@ -35,6 +35,11 @@ function installer() {
     wanType: 'dhcp',
     wanPppoeUser: '',
     wanPppoePass: '',
+
+    // Reboot countdown state
+    rebootPending: false,
+    rebootCountdown: 10,
+    rebootTimer: null,
     ifaces: [],
     loadingIfaces: false,
 
@@ -434,11 +439,25 @@ function installer() {
     },
 
     async reboot() {
-      try {
-        await this.callApi('reboot');
-      } catch (_) {
-        // Reboot kills the server; network error is expected
-      }
+      if (this.rebootPending) return;
+
+      this.rebootPending = true;
+      this.rebootCountdown = 10;
+
+      this.rebootTimer = setInterval(async () => {
+        if (this.rebootCountdown <= 1) {
+          clearInterval(this.rebootTimer);
+          this.rebootTimer = null;
+          try {
+            await this.callApi('reboot');
+          } catch (_) {
+            // Reboot kills the server; network error is expected
+          }
+          return;
+        }
+
+        this.rebootCountdown -= 1;
+      }, 1000);
     },
   };
 }
