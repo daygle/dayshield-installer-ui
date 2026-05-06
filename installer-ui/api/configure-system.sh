@@ -175,7 +175,8 @@ cat > "${TARGET}/etc/hosts" << EOF
 EOF
 
 # ── Set admin (root) password ─────────────────────────────────────
-# Prefer using the installed system's chpasswd for the target rootfs when available.# Lock any existing root password before applying the new one.
+# Prefer using the installed system's chpasswd for the target rootfs when available.
+# Lock any existing root password before applying the new one.
 if chroot "$TARGET" command -v passwd >/dev/null 2>&1; then
   chroot "$TARGET" passwd -l root >/dev/null 2>&1 || true
 fi
@@ -196,7 +197,79 @@ if [ "$USE_CHPASSWD" -eq 0 ]; then
   if command -v openssl >/dev/null 2>&1; then
     HASH=$(openssl passwd -6 -- "$PASSWORD" 2>/dev/null)
   elif command -v python3 >/dev/null 2>&1; then
-    HASH=$(python3 -c "import crypt,sys; print(crypt.crypt(sys.argv[1], crypt.mksalt(crypt.METHOD_SHA512)))" "$PASSWORD" 2>/dev/null)
+    HASH=$(python3 - "$PASSWORD" 2>/dev/null << 'PYEOF'
+import sys, hashlib, secrets
+
+def _sha512crypt(pwd, salt, rounds=5000):
+    p = pwd.encode('utf-8')
+    s = salt.encode('utf-8')
+    dB = hashlib.sha512(p + s + p).digest()
+    tmp = p + s
+    pl = len(p)
+    i = pl
+    while i > 0:
+        tmp += dB[:min(i, 64)]
+        i -= 64
+    i = pl
+    while i > 0:
+        tmp += (dB if i & 1 else p)
+        i >>= 1
+    dA = hashlib.sha512(tmp).digest()
+    dP = hashlib.sha512(p * pl).digest()
+    pStr = b''
+    i = pl
+    while i > 0:
+        pStr += dP[:min(i, 64)]
+        i -= 64
+    dS = hashlib.sha512(s * (16 + dA[0])).digest()
+    sStr = b''
+    i = len(s)
+    while i > 0:
+        sStr += dS[:min(i, 64)]
+        i -= 64
+    C = dA
+    for i in range(rounds):
+        t = (pStr if i % 2 else C)
+        if i % 3:
+            t += sStr
+        if i % 7:
+            t += pStr
+        t += (C if i % 2 else pStr)
+        C = hashlib.sha512(t).digest()
+    return C
+
+_B64CHARS = './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+
+def _b64(v, n):
+    r = ''
+    while n > 0:
+        r += _B64CHARS[v & 0x3f]
+        v >>= 6
+        n -= 1
+    return r
+
+def sha512crypt(pwd):
+    salt = ''.join(secrets.choice(_B64CHARS) for _ in range(16))
+    C = _sha512crypt(pwd, salt)
+    def t64(a, b, c, n): return _b64((a << 16) | (b << 8) | c, n)
+    h = (t64(C[0],C[21],C[42],4)+t64(C[22],C[43],C[1],4)+t64(C[44],C[2],C[23],4)+
+         t64(C[3],C[24],C[45],4)+t64(C[25],C[46],C[4],4)+t64(C[47],C[5],C[26],4)+
+         t64(C[6],C[27],C[48],4)+t64(C[28],C[49],C[7],4)+t64(C[50],C[8],C[29],4)+
+         t64(C[9],C[30],C[51],4)+t64(C[31],C[52],C[10],4)+t64(C[53],C[11],C[32],4)+
+         t64(C[12],C[33],C[54],4)+t64(C[34],C[55],C[13],4)+t64(C[56],C[14],C[35],4)+
+         t64(C[15],C[36],C[57],4)+t64(C[37],C[58],C[16],4)+t64(C[59],C[17],C[38],4)+
+         t64(C[18],C[39],C[60],4)+t64(C[40],C[61],C[19],4)+t64(C[62],C[20],C[41],4)+
+         _b64(C[63], 2))
+    return '$6${}${}'.format(salt, h)
+
+password = sys.argv[1]
+try:
+    import crypt
+    print(crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512)))
+except (ImportError, AttributeError):
+    print(sha512crypt(password))
+PYEOF
+)
   else
     printf '{"error":"Cannot hash password: neither openssl nor python3 found"}\n'; exit 1
   fi
@@ -205,11 +278,17 @@ if [ "$USE_CHPASSWD" -eq 0 ]; then
     printf '{"error":"Password hashing failed"}\n'; exit 1
   fi
 
-  if [ -f "${TARGET}/etc/shadow" ]; then
-    SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
-    sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
-  else
-    printf '{"error":"/etc/shadow not found in target"}\n'; exit 1
+  if [ ! -f "${TARGET}/etc/shadow" ]; then
+    printf '{"error":"/etc/shadow not found in target — the rootfs may not have been installed correctly or the shadow file is absent from the image"}\n'; exit 1
+  fi
+  if ! grep -q '^root:' "${TARGET}/etc/shadow"; then
+    printf '{"error":"No root entry found in /etc/shadow — cannot set root password"}\n'; exit 1
+  fi
+  SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
+  sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
+  HASH_IN_SHADOW=$(grep '^root:' "${TARGET}/etc/shadow" | cut -d: -f2)
+  if [ "$HASH_IN_SHADOW" != "$HASH" ]; then
+    printf '{"error":"Password was not applied — root entry in /etc/shadow was not updated"}\n'; exit 1
   fi
 fi
 
