@@ -2,7 +2,7 @@
 
 A minimal, offline, deterministic installer UI for DayShield Firewall OS.
 
-Runs on tty1 (physical console) and is served by busybox httpd on 0.0.0.0:8080 inside the live environment.
+Runs on tty1 (physical console) and is served by busybox httpd on 0.0.0.0:8443 inside the live environment.
 
 Default ISO behavior is to auto-start the web service. The tty1 launcher can be
 started manually if desired.
