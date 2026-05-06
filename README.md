@@ -7,6 +7,8 @@ Web installer interface for **DayShield Firewall OS**, used by the live ISO.
 - `installer-ui/`: web UI assets, CGI API scripts, and systemd units.
 - Root README: integration quick reference for ISO builds.
 
+> Note: the web installer is intended as a one-time local setup interface on a trusted network or direct console. It is not protected by authentication, so it should not be exposed to untrusted networks.
+
 ## Quick integration
 
 Build the installer-enabled ISO from `dayshield-iso`:

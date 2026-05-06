@@ -7,6 +7,8 @@ Runs on tty1 (physical console) and is served by busybox httpd on 0.0.0.0:8080 i
 Default ISO behavior is to auto-start the web service. The tty1 launcher can be
 started manually if desired.
 
+> Security note: the web installer is purposely unauthenticated for one-time local setup. Run it only on a trusted local network or directly on the installation console.
+
 ## Stack
 
 | Layer | Technology |
