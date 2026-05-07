@@ -26,6 +26,10 @@ if [ -z "$DISK" ]; then
 fi
 
 DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
+  printf '{"error":"Invalid disk name"}\n'
+  exit 1
+fi
 EFI_PART="/dev/${DISK}2"
 ROOT_PART="/dev/${DISK}3"
 

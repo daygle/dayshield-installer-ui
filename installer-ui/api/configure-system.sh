@@ -50,7 +50,15 @@ trim_ws() {
 
 QS="${QUERY_STRING:-}"
 if [ "${REQUEST_METHOD:-}" = "POST" ] && [ -n "${CONTENT_LENGTH:-}" ]; then
-  POST_DATA=$(dd bs=1 count="${CONTENT_LENGTH}" 2>/dev/null || true)
+  # Validate CONTENT_LENGTH is a non-negative integer and cap at 65536 (64 KiB)
+  # to prevent a DoS via an unbounded byte-by-byte dd read.  Reject malformed
+  # values rather than silently treating them as zero.
+  _CL="${CONTENT_LENGTH}"
+  case "$_CL" in
+    *[!0-9]*) printf '{"error":"Invalid Content-Length"}\n'; exit 1 ;;
+  esac
+  if [ "$_CL" -gt 65536 ]; then _CL=65536; fi
+  POST_DATA=$(dd bs=1 count="$_CL" 2>/dev/null || true)
   if [ -n "$POST_DATA" ]; then
     if [ -n "$QS" ]; then
       QS="${QS}&${POST_DATA}"
@@ -94,6 +102,12 @@ DHCP_END=$(trim_ws "$DHCP_END")
 # ── Validate ──────────────────────────────────────────────────────
 if [ -z "$DISK" ]; then
   printf '{"error":"Missing required parameter: disk"}\n'; exit 1
+fi
+# Strip /dev/ prefix then enforce a strict device-name whitelist to prevent
+# path traversal or unexpected device paths.
+DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
+  printf '{"error":"Invalid disk name"}\n'; exit 1
 fi
 if [ -z "$HOSTNAME" ]; then
   printf '{"error":"Missing required parameter: hostname"}\n'; exit 1
@@ -669,7 +683,7 @@ fi
 rm -f "${TARGET}/etc/systemd/system/getty@tty1.service" 2>/dev/null || true
 
 # ── Write /etc/fstab ──────────────────────────────────────────────
-DISK_NODE=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+DISK_NODE="$DISK"
 EFI_PART="/dev/${DISK_NODE}2"
 ROOT_PART="/dev/${DISK_NODE}3"
 case "$DISK_NODE" in nvme*|mmcblk*) EFI_PART="/dev/${DISK_NODE}p2"; ROOT_PART="/dev/${DISK_NODE}p3" ;; esac

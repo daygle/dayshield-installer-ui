@@ -32,6 +32,10 @@ if [ -z "$DISK" ]; then
 fi
 
 DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
+  printf '{"error":"Invalid disk name"}\n'
+  exit 1
+fi
 DEV="/dev/${DISK}"
 TARGET="/mnt/target"
 

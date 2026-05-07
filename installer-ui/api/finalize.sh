@@ -21,6 +21,12 @@ if [ -z "$DISK" ]; then
   exit 1
 fi
 
+DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
+  printf '{"error":"Invalid disk name"}\n'
+  exit 1
+fi
+
 TARGET="/mnt/target"
 
 # ── Enable firstboot service ──────────────────────────────────────
