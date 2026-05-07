@@ -50,11 +50,14 @@ trim_ws() {
 
 QS="${QUERY_STRING:-}"
 if [ "${REQUEST_METHOD:-}" = "POST" ] && [ -n "${CONTENT_LENGTH:-}" ]; then
+  # Validate CONTENT_LENGTH is a non-negative integer and cap at 65536 (64 KiB)
+  # to prevent a DoS via an unbounded byte-by-byte dd read.  Reject malformed
+  # values rather than silently treating them as zero.
   _CL="${CONTENT_LENGTH}"
   case "$_CL" in
     *[!0-9]*) printf '{"error":"Invalid Content-Length"}\n'; exit 1 ;;
   esac
-  [ "$_CL" -gt 65536 ] && _CL=65536
+  if [ "$_CL" -gt 65536 ]; then _CL=65536; fi
   POST_DATA=$(dd bs=1 count="$_CL" 2>/dev/null || true)
   if [ -n "$POST_DATA" ]; then
     if [ -n "$QS" ]; then
@@ -100,6 +103,8 @@ DHCP_END=$(trim_ws "$DHCP_END")
 if [ -z "$DISK" ]; then
   printf '{"error":"Missing required parameter: disk"}\n'; exit 1
 fi
+# Strip /dev/ prefix then enforce a strict device-name whitelist to prevent
+# path traversal or unexpected device paths.
 DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
 if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
   printf '{"error":"Invalid disk name"}\n'; exit 1
@@ -294,13 +299,13 @@ PYEOF
 if [ ! -f "${TARGET}/etc/shadow" ]; then
   printf '{"error":"/etc/shadow not found in target — the rootfs may not have been installed correctly or the shadow file is absent from the image"}\n'; exit 1
 fi
-  ROOT_COUNT=$(awk -F: '$1=="root"{c++} END{print c+0}' "${TARGET}/etc/shadow")
-  if [ "$ROOT_COUNT" -eq 0 ]; then
-    printf '{"error":"No root entry found in /etc/shadow — cannot set root password"}\n'; exit 1
-  fi
-  if [ "$ROOT_COUNT" -gt 1 ]; then
-    printf '{"error":"Invalid /etc/shadow: multiple root entries found"}\n'; exit 1
-  fi
+ROOT_COUNT=$(awk -F: '$1=="root"{c++} END{print c+0}' "${TARGET}/etc/shadow")
+if [ "$ROOT_COUNT" -eq 0 ]; then
+  printf '{"error":"No root entry found in /etc/shadow — cannot set root password"}\n'; exit 1
+fi
+if [ "$ROOT_COUNT" -gt 1 ]; then
+  printf '{"error":"Invalid /etc/shadow: multiple root entries found"}\n'; exit 1
+fi
 SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
 sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
 HASH_IN_SHADOW=$(grep '^root:' "${TARGET}/etc/shadow" | head -n1 | cut -d: -f2)
@@ -679,7 +684,7 @@ fi
 rm -f "${TARGET}/etc/systemd/system/getty@tty1.service" 2>/dev/null || true
 
 # ── Write /etc/fstab ──────────────────────────────────────────────
-DISK_NODE=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+DISK_NODE="$DISK"
 EFI_PART="/dev/${DISK_NODE}2"
 ROOT_PART="/dev/${DISK_NODE}3"
 case "$DISK_NODE" in nvme*|mmcblk*) EFI_PART="/dev/${DISK_NODE}p2"; ROOT_PART="/dev/${DISK_NODE}p3" ;; esac

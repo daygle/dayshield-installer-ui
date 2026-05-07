@@ -30,7 +30,8 @@ if [ -z "$DISK" ]; then
   exit 1
 fi
 
-# Strip /dev/ prefix if caller included it
+# Strip /dev/ prefix if caller included it, then enforce a strict
+# device-name whitelist to prevent path traversal.
 DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
 if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
   printf '{"error":"Invalid disk name"}\n'
