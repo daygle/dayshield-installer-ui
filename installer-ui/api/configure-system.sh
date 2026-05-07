@@ -291,18 +291,22 @@ PYEOF
     printf '{"error":"Password hashing failed"}\n'; exit 1
   fi
 
-  if [ ! -f "${TARGET}/etc/shadow" ]; then
-    printf '{"error":"/etc/shadow not found in target — the rootfs may not have been installed correctly or the shadow file is absent from the image"}\n'; exit 1
-  fi
-  if ! grep -q '^root:' "${TARGET}/etc/shadow"; then
-    printf '{"error":"No root entry found in /etc/shadow — cannot set root password"}\n'; exit 1
-  fi
-  SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
-  sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
-  HASH_IN_SHADOW=$(grep '^root:' "${TARGET}/etc/shadow" | cut -d: -f2)
-  if [ "$HASH_IN_SHADOW" != "$HASH" ]; then
-    printf '{"error":"Password was not applied — root entry in /etc/shadow was not updated"}\n'; exit 1
-  fi
+if [ ! -f "${TARGET}/etc/shadow" ]; then
+  printf '{"error":"/etc/shadow not found in target — the rootfs may not have been installed correctly or the shadow file is absent from the image"}\n'; exit 1
+fi
+if ! grep -q '^root:' "${TARGET}/etc/shadow"; then
+  printf '{"error":"No root entry found in /etc/shadow — cannot set root password"}\n'; exit 1
+fi
+ROOT_COUNT=$(grep -c '^root:' "${TARGET}/etc/shadow" || true)
+if [ "$ROOT_COUNT" -ne 1 ]; then
+  printf '{"error":"Invalid /etc/shadow: expected exactly one root entry"}\n'; exit 1
+fi
+SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
+sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
+HASH_IN_SHADOW=$(grep '^root:' "${TARGET}/etc/shadow" | head -n1 | cut -d: -f2)
+if [ "$HASH_IN_SHADOW" != "$HASH" ]; then
+  printf '{"error":"Password was not applied — root entry in /etc/shadow was not updated"}\n'; exit 1
+fi
 fi
 
 # Ensure SSH accepts root password login for first access after install.

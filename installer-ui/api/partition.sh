@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck shell=ash
 # partition.sh - Create GPT partition table with BIOS boot + EFI + root partitions
 # Query string params: disk=<name>   (e.g. disk=sda)
 # Output: JSON  { "ok": true } | { "error": "message" }
@@ -31,6 +32,10 @@ fi
 
 # Strip /dev/ prefix if caller included it
 DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
+  printf '{"error":"Invalid disk name"}\n'
+  exit 1
+fi
 DEV="/dev/${DISK}"
 
 if [ ! -b "$DEV" ]; then

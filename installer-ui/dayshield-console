@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck shell=ash
 
 set -eu
 
@@ -216,7 +217,6 @@ detect_disks() {
 }
 
 choose_disk() {
-  local index=1
   local disk
   print_header 'Disk Selection'
   while :; do
