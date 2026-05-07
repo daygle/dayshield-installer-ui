@@ -51,10 +51,11 @@ trim_ws() {
 QS="${QUERY_STRING:-}"
 if [ "${REQUEST_METHOD:-}" = "POST" ] && [ -n "${CONTENT_LENGTH:-}" ]; then
   # Validate CONTENT_LENGTH is a non-negative integer and cap at 65536 (64 KiB)
-  # to prevent a DoS via an unbounded byte-by-byte dd read.
+  # to prevent a DoS via an unbounded byte-by-byte dd read.  Reject malformed
+  # values rather than silently treating them as zero.
   _CL="${CONTENT_LENGTH}"
   case "$_CL" in
-    *[!0-9]*) _CL=0 ;;
+    *[!0-9]*) printf '{"error":"Invalid Content-Length"}\n'; exit 1 ;;
   esac
   if [ "$_CL" -gt 65536 ]; then _CL=65536; fi
   POST_DATA=$(dd bs=1 count="$_CL" 2>/dev/null || true)
