@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck shell=ash
 # partition.sh - Create GPT partition table with BIOS boot + EFI + root partitions
 # Query string params: disk=<name>   (e.g. disk=sda)
 # Output: JSON  { "ok": true } | { "error": "message" }

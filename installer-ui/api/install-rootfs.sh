@@ -64,7 +64,6 @@ DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
 if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
   reply_error 'Invalid disk name'
 fi
-
 EFI_PART="/dev/${DISK}2"
 ROOT_PART="/dev/${DISK}3"
 case "$DISK" in nvme*|mmcblk*) EFI_PART="/dev/${DISK}p2"; ROOT_PART="/dev/${DISK}p3" ;; esac

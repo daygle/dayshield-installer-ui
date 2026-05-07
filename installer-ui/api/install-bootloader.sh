@@ -171,7 +171,18 @@ fi
 
 # ── Ensure kernel and initramfs exist ───────────────────────────
 # If the rootfs extraction didn't include these files, generate them now
-if [ ! -f "${TARGET}/boot/vmlinuz" ] && [ ! -f "${TARGET}/boot/vmlinuz-"* ]; then
+KERNEL_PRESENT=0
+if [ -f "${TARGET}/boot/vmlinuz" ]; then
+  KERNEL_PRESENT=1
+else
+  for _k in "${TARGET}"/boot/vmlinuz-*; do
+    if [ -e "$_k" ]; then
+      KERNEL_PRESENT=1
+      break
+    fi
+  done
+fi
+if [ "$KERNEL_PRESENT" -ne 1 ]; then
   WARNING_MSG="${WARNING_MSG:+$WARNING_MSG; }Kernel not found in /boot, attempting to generate initramfs"
   
   # Try update-initramfs in chroot (Debian/Ubuntu)
