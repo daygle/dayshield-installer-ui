@@ -50,7 +50,12 @@ trim_ws() {
 
 QS="${QUERY_STRING:-}"
 if [ "${REQUEST_METHOD:-}" = "POST" ] && [ -n "${CONTENT_LENGTH:-}" ]; then
-  POST_DATA=$(dd bs=1 count="${CONTENT_LENGTH}" 2>/dev/null || true)
+  _CL="${CONTENT_LENGTH}"
+  case "$_CL" in
+    *[!0-9]*) printf '{"error":"Invalid Content-Length"}\n'; exit 1 ;;
+  esac
+  [ "$_CL" -gt 65536 ] && _CL=65536
+  POST_DATA=$(dd bs=1 count="$_CL" 2>/dev/null || true)
   if [ -n "$POST_DATA" ]; then
     if [ -n "$QS" ]; then
       QS="${QS}&${POST_DATA}"
@@ -95,11 +100,19 @@ DHCP_END=$(trim_ws "$DHCP_END")
 if [ -z "$DISK" ]; then
   printf '{"error":"Missing required parameter: disk"}\n'; exit 1
 fi
+DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
+  printf '{"error":"Invalid disk name"}\n'; exit 1
+fi
 if [ -z "$HOSTNAME" ]; then
   printf '{"error":"Missing required parameter: hostname"}\n'; exit 1
 fi
 if [ -z "$PASSWORD" ]; then
   printf '{"error":"Missing required parameter: password"}\n'; exit 1
+fi
+_pwlen=$(printf '%s' "$PASSWORD" | wc -c)
+if [ "$_pwlen" -gt 128 ]; then
+  printf '{"error":"Password must be 128 characters or fewer"}\n'; exit 1
 fi
 if [ -z "$IFACE" ]; then
   printf '{"error":"Missing required parameter: iface"}\n'; exit 1
