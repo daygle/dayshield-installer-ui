@@ -50,7 +50,14 @@ trim_ws() {
 
 QS="${QUERY_STRING:-}"
 if [ "${REQUEST_METHOD:-}" = "POST" ] && [ -n "${CONTENT_LENGTH:-}" ]; then
-  POST_DATA=$(dd bs=1 count="${CONTENT_LENGTH}" 2>/dev/null || true)
+  # Validate CONTENT_LENGTH is a non-negative integer and cap at 65536 (64 KiB)
+  # to prevent a DoS via an unbounded byte-by-byte dd read.
+  _CL="${CONTENT_LENGTH}"
+  case "$_CL" in
+    *[!0-9]*) _CL=0 ;;
+  esac
+  if [ "$_CL" -gt 65536 ]; then _CL=65536; fi
+  POST_DATA=$(dd bs=1 count="$_CL" 2>/dev/null || true)
   if [ -n "$POST_DATA" ]; then
     if [ -n "$QS" ]; then
       QS="${QS}&${POST_DATA}"
@@ -95,11 +102,20 @@ DHCP_END=$(trim_ws "$DHCP_END")
 if [ -z "$DISK" ]; then
   printf '{"error":"Missing required parameter: disk"}\n'; exit 1
 fi
+# Strip /dev/ prefix then enforce a strict device-name whitelist to prevent
+# path traversal or unexpected device paths.
+DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
+  printf '{"error":"Invalid disk name"}\n'; exit 1
+fi
 if [ -z "$HOSTNAME" ]; then
   printf '{"error":"Missing required parameter: hostname"}\n'; exit 1
 fi
 if [ -z "$PASSWORD" ]; then
   printf '{"error":"Missing required parameter: password"}\n'; exit 1
+fi
+if [ "${#PASSWORD}" -gt 128 ]; then
+  printf '{"error":"Password exceeds maximum length of 128 characters"}\n'; exit 1
 fi
 if [ -z "$IFACE" ]; then
   printf '{"error":"Missing required parameter: iface"}\n'; exit 1
@@ -284,9 +300,13 @@ PYEOF
   if ! grep -q '^root:' "${TARGET}/etc/shadow"; then
     printf '{"error":"No root entry found in /etc/shadow — cannot set root password"}\n'; exit 1
   fi
+  ROOT_COUNT=$(grep -c '^root:' "${TARGET}/etc/shadow")
+  if [ "$ROOT_COUNT" -gt 1 ]; then
+    printf '{"error":"Multiple root entries in /etc/shadow — shadow file may be corrupt"}\n'; exit 1
+  fi
   SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
   sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
-  HASH_IN_SHADOW=$(grep '^root:' "${TARGET}/etc/shadow" | cut -d: -f2)
+  HASH_IN_SHADOW=$(grep '^root:' "${TARGET}/etc/shadow" | head -n1 | cut -d: -f2)
   if [ "$HASH_IN_SHADOW" != "$HASH" ]; then
     printf '{"error":"Password was not applied — root entry in /etc/shadow was not updated"}\n'; exit 1
   fi
@@ -662,7 +682,7 @@ fi
 rm -f "${TARGET}/etc/systemd/system/getty@tty1.service" 2>/dev/null || true
 
 # ── Write /etc/fstab ──────────────────────────────────────────────
-DISK_NODE=$(printf '%s' "$DISK" | sed 's|^/dev/||')
+DISK_NODE="$DISK"
 EFI_PART="/dev/${DISK_NODE}2"
 ROOT_PART="/dev/${DISK_NODE}3"
 case "$DISK_NODE" in nvme*|mmcblk*) EFI_PART="/dev/${DISK_NODE}p2"; ROOT_PART="/dev/${DISK_NODE}p3" ;; esac
