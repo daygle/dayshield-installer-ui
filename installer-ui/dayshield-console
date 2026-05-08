@@ -403,11 +403,11 @@ main() {
   password=$(prompt_password_confirm 'Enter admin password: ')
 
   lan_iface=$(choose_interface 'Enter LAN interface name' '')
-  lan_ip=$(prompt_ip 'Enter LAN IP address' '192.168.50.1')
+  lan_ip=$(prompt_ip 'Enter LAN IP address' '192.168.1.1')
   lan_prefix=$(prompt_prefix 'Enter LAN network prefix length' '24')
   if confirm 'Enable LAN DHCP?' yes; then
     lan_dhcp_enable=yes
-    dhcp_range=$(prompt_dhcp_range '192.168.50.10' '192.168.50.100')
+    dhcp_range=$(prompt_dhcp_range '192.168.1.100' '192.168.1.199')
     dhcp_start=$(printf '%s' "$dhcp_range" | cut -d'|' -f1)
     dhcp_end=$(printf '%s' "$dhcp_range" | cut -d'|' -f2)
   else
