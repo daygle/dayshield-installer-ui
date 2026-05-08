@@ -320,6 +320,16 @@ if [ -f "${TARGET}/etc/ssh/sshd_config" ]; then
   sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' "${TARGET}/etc/ssh/sshd_config"
 fi
 
+# ── Create DayShield admin.json (management UI credentials) ──────
+# dayshield-core uses its own Argon2id auth store — separate from Linux root.
+# Use the binary in the target rootfs to hash and write the credentials so
+# the same code/parameters are used at install time and at runtime.
+if chroot "$TARGET" /usr/local/sbin/dayshield-core init-admin "$PASSWORD" >/dev/null 2>&1; then
+  chmod 600 "${TARGET}/etc/dayshield/admin.json" 2>/dev/null || true
+else
+  printf '{"error":"Failed to initialise DayShield admin credentials — dayshield-core init-admin failed"}\n'; exit 1
+fi
+
 # ── Configure LAN interface ───────────────────────────────────────
 NETDIR="${TARGET}/etc/dayshield"
 mkdir -p "$NETDIR"
@@ -344,16 +354,6 @@ cat > "${TARGET}/etc/dayshield/config/nft-ifaces.conf" << EOF
 define WAN_IF = ${WAN_IFACE}
 define LAN_IF = ${IFACE}
 EOF
-
-# If the management UI assets are already installed in the rootfs, expose
-# the UI on port 8443 by redirecting external port 8443 to the core API/UI
-# server on port 3000.
-if [ -f "${TARGET}/usr/local/share/dayshield-ui/index.html" ]; then
-  mkdir -p "${TARGET}/etc/nftables.d"
-  cat > "${TARGET}/etc/nftables.d/dayshield-ui-redirect.nft" << 'EOF'
-add rule ip nat prerouting tcp dport 8443 redirect to :3000
-EOF
-fi
 
 # Also write a systemd-networkd .network file if applicable
 NETWORKD_DIR="${TARGET}/etc/systemd/network"
