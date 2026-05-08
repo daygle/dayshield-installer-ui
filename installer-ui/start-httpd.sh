@@ -3,8 +3,6 @@
 set -eu
 
 PORT=8443
-FALLBACK_IP="192.168.50.1"
-FALLBACK_CIDR="192.168.50.1/24"
 
 preferred_fallback_iface() {
   first_iface=""
@@ -48,25 +46,10 @@ if ! command -v busybox >/dev/null 2>&1 || ! busybox --list 2>/dev/null | grep -
   exit 1
 fi
 
-LISTEN_IP=""
-IFACE="$(preferred_fallback_iface || true)"
-if [ -n "$IFACE" ]; then
-  LISTEN_IP="$(iface_ip4 "$IFACE" || true)"
-  if [ -z "$LISTEN_IP" ] && command -v ip >/dev/null 2>&1; then
-    if ip -4 addr show dev "$IFACE" 2>/dev/null | grep -q "$FALLBACK_CIDR"; then
-      LISTEN_IP="$FALLBACK_IP"
-    fi
-  fi
-fi
-
-if [ -z "$LISTEN_IP" ] && command -v ip >/dev/null 2>&1; then
-  LISTEN_IP="$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $4; exit}' | cut -d/ -f1 || true)"
-fi
-
-if [ -z "$LISTEN_IP" ]; then
-  printf 'WARNING: no dedicated LAN interface IP found; binding to 0.0.0.0 for compatibility\n' >&2
-  LISTEN_IP="0.0.0.0"
-fi
+# Bind on all interfaces for installer reliability.  The live environment may
+# have multiple NICs (or transient DHCP timing), so binding to one detected IP
+# can make the web UI unreachable from another interface.
+LISTEN_IP="0.0.0.0"
 
 if busybox httpd --help 2>&1 | grep -q -- "-t"; then
   exec busybox httpd -f -p "$LISTEN_IP:$PORT" -h /installer-ui -c /installer-ui/httpd.conf -t 1800

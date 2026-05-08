@@ -75,14 +75,11 @@ _open_installer_port() {
 }
 _open_installer_port
 
-# If chosen fallback NIC already has IPv4, skip fallback address assignment.
-if iface_has_global_ip "$IFACE"; then
-  exit 0
-fi
-
 [ -z "${IFACE:-}" ] && exit 0
 
 # Bring interface up and add fallback address if not already present.
+# Keep this alias even when DHCP already assigned an address so operators can
+# always use the documented installer URL (http://192.168.50.1:8443).
 ip link set "$IFACE" up >/dev/null 2>&1 || true
 if ! ip -4 addr show dev "$IFACE" 2>/dev/null | grep -q '192\.168\.50\.1/24'; then
   ip -4 addr add "$FALLBACK_IP" dev "$IFACE" >/dev/null 2>&1 || true
