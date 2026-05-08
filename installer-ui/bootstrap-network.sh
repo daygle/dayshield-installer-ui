@@ -57,6 +57,22 @@ if command -v sysctl >/dev/null 2>&1; then
   fi
 fi
 
+# Open installer web UI port on all interfaces for live-boot sessions.
+# The base nftables ruleset restricts port 8443 to $LAN_IF which is set to
+# 'lo' (loopback placeholder) at live-boot time.  Insert a temporary accept
+# rule so a remote browser can reach the web installer before any NIC is
+# assigned as LAN.  This rule is only present during the live-ISO session and
+# is never written to the installed system.
+_open_installer_port() {
+  if ! command -v nft >/dev/null 2>&1; then return; fi
+  # Only act if nftables filter table exists (nftables service is running).
+  if ! nft list table ip filter >/dev/null 2>&1; then return; fi
+  # Only insert if not already present (idempotent on service restarts).
+  if nft list chain ip filter input 2>/dev/null | grep -q 'tcp dport 8443'; then return; fi
+  nft insert rule ip filter input tcp dport 8443 ct state new accept 2>/dev/null || true
+}
+_open_installer_port
+
 # If chosen fallback NIC already has IPv4, skip fallback address assignment.
 if iface_has_global_ip "$IFACE"; then
   exit 0
