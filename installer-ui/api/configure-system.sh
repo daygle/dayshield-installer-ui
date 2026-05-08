@@ -621,7 +621,10 @@ chmod 600 "${CORE_CFG_DIR}/config.json"
 # ── Update Suricata WAN interface ─────────────────────────────────
 SURICATA_YAML="${TARGET}/etc/suricata/suricata.yaml"
 if [ -f "$SURICATA_YAML" ]; then
-  sed -i "s/^\([[:space:]]*interface:\)[[:space:]].*/\1 ${WAN_IFACE}/" "$SURICATA_YAML"
+  # Only replace lines with exactly two leading spaces (af-packet / pcap
+  # capture entries).  A broader pattern would corrupt app-layer protocol
+  # blocks that also contain an 'interface:' key at deeper indentation.
+  sed -i "s/^  - interface: .*$/  - interface: ${WAN_IFACE}/" "$SURICATA_YAML"
 fi
 SYSTEMD_MULTI_USER="${TARGET}/etc/systemd/system/multi-user.target.wants"
 mkdir -p "$SYSTEMD_MULTI_USER"
