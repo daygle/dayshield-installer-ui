@@ -547,6 +547,8 @@ EOF
 # Seed DayShield core config so DHCP UI/API reflects installer defaults.
 CORE_CFG_DIR="${TARGET}/etc/dayshield/config"
 mkdir -p "$CORE_CFG_DIR"
+# Generate UUIDs for seeded default firewall rules.
+_lan_rule_uuid="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || printf 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')"
 cat > "${CORE_CFG_DIR}/config.json" << EOF
 {
   "hostname": "${HOSTNAME}",
@@ -581,7 +583,21 @@ cat > "${CORE_CFG_DIR}/config.json" << EOF
       "gateway": null
     }
   ],
-  "firewall_rules": [],
+  "firewall_rules": [
+    {
+      "id": "${_lan_rule_uuid}",
+      "description": "Default: allow all from LAN",
+      "priority": 10,
+      "source": null,
+      "destination": null,
+      "protocol": null,
+      "source_port": null,
+      "destination_port": null,
+      "action": "accept",
+      "interface": "${IFACE}",
+      "log": false
+    }
+  ],
   "nat": null,
   "dns": null,
   "dhcp": {
