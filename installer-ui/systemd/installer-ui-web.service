@@ -1,7 +1,8 @@
 [Unit]
 Description=DayShield Installer Web UI (busybox httpd on port 8443)
 Documentation=https://github.com/daygle/dayshield-installer-ui
-After=network.target
+Wants=nftables.service
+After=nftables.service network.target
 Before=installer-ui.service
 ConditionKernelCommandLine=installer
 
