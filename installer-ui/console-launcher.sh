@@ -81,11 +81,11 @@ while true; do
     printf "\n"
   fi
 
-  printf "  Command-Line Installer options:\n"
-  printf "    [C] Start command-line installer wizard\n"
-  printf "    [S] Open shell for diagnostics\n"
-  printf "    [R] Refresh this screen\n"
-  printf "    [Q] Quit this screen\n\n"
+  printf "  Command-Line Options:\n"
+  printf "    [C] Command-line Installer\n"
+  printf "    [S] Shell\n"
+  printf "    [R] Refresh\n"
+  printf "    [Q] Quit\n\n"
 
   printf "  Enter choice (C/S/R/Q): "
   KEY=""
