@@ -67,9 +67,11 @@ _open_installer_port() {
   if ! command -v nft >/dev/null 2>&1; then return; fi
   # Only act if nftables filter table exists (nftables service is running).
   if ! nft list table ip filter >/dev/null 2>&1; then return; fi
-  # Only insert if not already present (idempotent on service restarts).
-  if nft list chain ip filter input 2>/dev/null | grep -q 'tcp dport 8443'; then return; fi
-  nft insert rule ip filter input tcp dport 8443 ct state new accept 2>/dev/null || true
+  # Only insert if our installer override rule is not already present.
+  # The base ruleset already contains a LAN-only 8443 rule, so searching for
+  # just "tcp dport 8443" is insufficient and would falsely skip insertion.
+  if nft list chain ip filter input 2>/dev/null | grep -q 'dayshield-installer-web'; then return; fi
+  nft insert rule ip filter input tcp dport 8443 ct state new accept comment "dayshield-installer-web" 2>/dev/null || true
 }
 _open_installer_port
 
