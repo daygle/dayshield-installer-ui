@@ -42,7 +42,7 @@ installer-ui/
 |   |-- install-bootloader.sh# GRUB BIOS + UEFI install
 |   |-- configure-system.sh  # Hostname, password, network, fstab, services
 |   |-- finalize.sh          # Unmount, sync, clean temp files
-|   `-- reboot.sh            # systemctl reboot
+|   `-- reboot.sh            # detached reboot trigger with fallbacks
 `-- systemd/
     |-- installer-ui.service     # Console launcher
     `-- installer-ui-web.service # busybox httpd service
