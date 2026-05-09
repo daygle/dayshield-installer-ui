@@ -91,7 +91,28 @@ while true; do
   KEY=""
   read -r KEY 2>/dev/null || KEY=""
   case "$KEY" in
-    [Cc]) break ;;
+    [Cc])
+      printf "  Launching command-line installer wizard...\n\n"
+
+      if [ -f /installer-ui/dayshield-console ]; then
+        if command -v bash >/dev/null 2>&1; then
+          /bin/bash /installer-ui/dayshield-console || true
+        elif command -v busybox >/dev/null 2>&1; then
+          busybox ash /installer-ui/dayshield-console || true
+        else
+          /bin/sh /installer-ui/dayshield-console || true
+        fi
+
+        printf "\n  Command-line installer exited.\n"
+      else
+        printf "\n  ERROR: missing /installer-ui/dayshield-console\n"
+      fi
+
+      printf "  Press Enter to return to menu..."
+      read -r _ 2>/dev/null || true
+      printf '\033c'
+      continue
+      ;;
     [Ss])
       printf '  Opening shell... (type "exit" to return to menu)\n\n'
       if command -v bash >/dev/null 2>&1; then
@@ -118,6 +139,3 @@ while true; do
       ;;
   esac
 done
-
-printf "  Launching command-line installer wizard...\n\n"
-exec /installer-ui/dayshield-console
