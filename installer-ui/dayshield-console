@@ -102,7 +102,7 @@ read_prompt() {
   local prompt=$1
   local allow_quit=${2:-no}
   printf '%s' "$prompt"
-  read -r answer 2>/dev/null || answer=''
+  read -r answer < /dev/tty || answer=''
   answer=$(trim "$answer")
   if [ "$allow_quit" = yes ] && { [ "$answer" = q ] || [ "$answer" = Q ]; }; then
     quit_wizard
@@ -175,7 +175,7 @@ prompt_password() {
     while :; do
       printf '%s' "$prompt"
       stty -echo
-      read -r password 2>/dev/null || password=''
+      read -r password < /dev/tty || password=''
       stty echo
       printf '\n'
       if [ -n "$password" ]; then
