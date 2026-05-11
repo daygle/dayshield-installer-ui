@@ -235,12 +235,14 @@ function installer() {
       }
 
       const text = await res.text().catch(() => '');
+      const normalizedText = text.replace(/\r\n/g, '\n');
+      const bodyText = normalizedText.replace(/^Content-Type:[^\n]*\n(?:[^\n]*\n)*\n/, '');
 
       let data;
       try {
-        data = text ? JSON.parse(text) : null;
+        data = bodyText ? JSON.parse(bodyText) : null;
       } catch (_) {
-        throw new Error(`Script ${script} returned non-JSON response: ${text.slice(0, 200)}`);
+        throw new Error(`Script ${script} returned non-JSON response: ${bodyText.slice(0, 200)}`);
       }
 
       if (!data) {

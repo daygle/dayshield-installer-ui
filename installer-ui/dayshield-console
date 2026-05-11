@@ -41,14 +41,8 @@ run_api_script() {
   local qs output
   qs=$(build_query_string "$@")
   output=$(REQUEST_METHOD=GET QUERY_STRING="$qs" /bin/sh "/installer-ui/api/${script}.sh" 2>&1)
-  case "$output" in
-    Content-Type:*)
-      printf '%s\n' "$output" | sed '1,/^$/d'
-      ;;
-    *)
-      printf '%s\n' "$output"
-      ;;
-  esac
+  output=$(strip_cgi_headers "$output")
+  printf '%s\n' "$output"
 }
 
 run_api_script_post() {
@@ -58,14 +52,22 @@ run_api_script_post() {
   qs=$(build_query_string "$@")
   len=$(printf '%s' "$qs" | wc -c)
   output=$(printf '%s' "$qs" | REQUEST_METHOD=POST CONTENT_LENGTH="$len" /bin/sh "/installer-ui/api/${script}.sh" 2>&1)
-  case "$output" in
-    Content-Type:*)
-      printf '%s\n' "$output" | sed '1,/^$/d'
-      ;;
-    *)
-      printf '%s\n' "$output"
-      ;;
-  esac
+  output=$(strip_cgi_headers "$output")
+  printf '%s\n' "$output"
+}
+
+strip_cgi_headers() {
+  local data="$1"
+  if [ -z "$data" ]; then
+    return
+  fi
+  printf '%s\n' "$data" | sed 's/\r$//' | awk '
+    BEGIN { header = 1 }
+    {
+      if (header && $0 == "") { header = 0; next }
+      if (!header) print
+    }
+  '
 }
 
 json_has_ok() {
