@@ -50,18 +50,20 @@ for part in "$EFI_PART" "$ROOT_PART"; do
 done
 
 # ── Format EFI partition as FAT32 ────────────────────────────────
-if ! mkfs.fat -F32 -n "EFI" "$EFI_PART" >/dev/null 2>&1; then
-  printf '{"error":"Failed to format EFI partition %s as FAT32"}\n' "$EFI_PART"
+mkfs_efi_err=$(mkfs.fat -F32 -n "EFI" "$EFI_PART" 2>&1) || {
+  error_msg=$(printf '%s' "$mkfs_efi_err" | sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/' | tr -d '\n')
+  printf '{"error":"Failed to format EFI partition %s as FAT32: %s"}\n' "$EFI_PART" "$error_msg"
   exit 1
-fi
+}
 
-# ── Format root partition as ext4 ────────────────────────────────
-if ! mkfs.ext4 -F -L "dayshield-root" \
+# ── Format root partition as ext4 ────────────────────────────
+mkfs_root_err=$(mkfs.ext4 -F -L "dayshield-root" \
      -O "^64bit,metadata_csum" \
      -m 1 \
-     "$ROOT_PART" >/dev/null 2>&1; then
-  printf '{"error":"Failed to format root partition %s as ext4"}\n' "$ROOT_PART"
+     "$ROOT_PART" 2>&1) || {
+  error_msg=$(printf '%s' "$mkfs_root_err" | sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/' | tr -d '\n')
+  printf '{"error":"Failed to format root partition %s as ext4: %s"}\n' "$ROOT_PART" "$error_msg"
   exit 1
-fi
+}
 
 printf '{"ok":true}\n'

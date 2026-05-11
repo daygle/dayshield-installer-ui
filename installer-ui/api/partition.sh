@@ -49,28 +49,32 @@ wipefs -a "$DEV" >/dev/null 2>&1 || true
 
 # ── Partition with sgdisk (preferred) ────────────────────────────
 if command -v sgdisk >/dev/null 2>&1; then
-  if ! sgdisk \
+  sgdisk_err=$(sgdisk \
         --zap-all \
         --new=1:1MiB:+1MiB --typecode=1:EF02 --change-name=1:"BIOS Boot" \
         --new=2:0:+512M    --typecode=2:EF00 --change-name=2:"EFI System" \
         --new=3:0:0        --typecode=3:8300 --change-name=3:"Linux Root" \
-        "$DEV" >/dev/null 2>&1; then
-    printf '{"error":"sgdisk failed on %s"}\n' "$DEV"
+        "$DEV" 2>&1) || {
+    # Escape error message for JSON
+    error_msg=$(printf '%s' "$sgdisk_err" | sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/' | tr -d '\n')
+    printf '{"error":"sgdisk failed: %s"}\n' "$error_msg"
     exit 1
-  fi
+  }
 
 # ── Fallback: parted ─────────────────────────────────────────────
 elif command -v parted >/dev/null 2>&1; then
-  if ! parted -s "$DEV" \
+  parted_err=$(parted -s "$DEV" \
         mklabel gpt \
         mkpart primary 1MiB 2MiB \
         set 1 bios_grub on \
         mkpart primary fat32 2MiB 514MiB \
         set 2 esp on \
-        mkpart primary ext4 514MiB 100% >/dev/null 2>&1; then
-    printf '{"error":"parted failed on %s"}\n' "$DEV"
+        mkpart primary ext4 514MiB 100% 2>&1) || {
+    # Escape error message for JSON
+    error_msg=$(printf '%s' "$parted_err" | sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/' | tr -d '\n')
+    printf '{"error":"parted failed: %s"}\n' "$error_msg"
     exit 1
-  fi
+  }
 
 else
   printf '{"error":"Neither sgdisk nor parted found"}\n'
