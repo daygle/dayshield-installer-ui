@@ -44,6 +44,13 @@ if [ ! -b "$DEV" ]; then
   exit 1
 fi
 
+# Refuse to partition disks that are currently mounted (common when the
+# selected disk is the live boot media).
+if awk -v dev="$DEV" '$1 ~ ("^" dev) { found=1 } END { exit(found ? 0 : 1) }' /proc/mounts; then
+  printf '{"error":"Device %s is currently mounted/in use (likely live boot media). Select a different install disk."}\n' "$DEV"
+  exit 1
+fi
+
 # ── Wipe existing signatures ──────────────────────────────────────
 wipefs -a "$DEV" >/dev/null 2>&1 || true
 

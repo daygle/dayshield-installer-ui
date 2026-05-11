@@ -38,18 +38,34 @@ build_query_string() {
 run_api_script() {
   local script=$1
   shift
-  local qs
+  local qs output
   qs=$(build_query_string "$@")
-  REQUEST_METHOD=GET QUERY_STRING="$qs" /bin/sh "/installer-ui/api/${script}.sh" 2>&1 | sed '1,/^$/d'
+  output=$(REQUEST_METHOD=GET QUERY_STRING="$qs" /bin/sh "/installer-ui/api/${script}.sh" 2>&1)
+  case "$output" in
+    Content-Type:*)
+      printf '%s\n' "$output" | sed '1,/^$/d'
+      ;;
+    *)
+      printf '%s\n' "$output"
+      ;;
+  esac
 }
 
 run_api_script_post() {
   local script=$1
   shift
-  local qs len
+  local qs len output
   qs=$(build_query_string "$@")
   len=$(printf '%s' "$qs" | wc -c)
-  printf '%s' "$qs" | REQUEST_METHOD=POST CONTENT_LENGTH="$len" /bin/sh "/installer-ui/api/${script}.sh" 2>&1 | sed '1,/^$/d'
+  output=$(printf '%s' "$qs" | REQUEST_METHOD=POST CONTENT_LENGTH="$len" /bin/sh "/installer-ui/api/${script}.sh" 2>&1)
+  case "$output" in
+    Content-Type:*)
+      printf '%s\n' "$output" | sed '1,/^$/d'
+      ;;
+    *)
+      printf '%s\n' "$output"
+      ;;
+  esac
 }
 
 json_has_ok() {
@@ -71,10 +87,14 @@ run_step() {
   fi
   error=$(json_extract_error "$response")
   if [ -n "$error" ]; then
-    printf '\nERROR: %s\n' "$error" >&2
+    printf '\nERROR: %s\n' "$error"
   else
-    printf '\nERROR: unexpected response from %s\n' "$1" >&2
-    printf '%s\n' "$response" >&2
+    printf '\nERROR: unexpected response from %s\n' "$1"
+    if [ -n "$response" ]; then
+      printf '%s\n' "$response"
+    else
+      printf 'No output received from API script.\n'
+    fi
   fi
   return 1
 }
@@ -90,10 +110,14 @@ run_step_post() {
   fi
   error=$(json_extract_error "$response")
   if [ -n "$error" ]; then
-    printf '\nERROR: %s\n' "$error" >&2
+    printf '\nERROR: %s\n' "$error"
   else
-    printf '\nERROR: unexpected response from %s\n' "$1" >&2
-    printf '%s\n' "$response" >&2
+    printf '\nERROR: unexpected response from %s\n' "$1"
+    if [ -n "$response" ]; then
+      printf '%s\n' "$response"
+    else
+      printf 'No output received from API script.\n'
+    fi
   fi
   return 1
 }
