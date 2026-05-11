@@ -101,7 +101,7 @@ trim() {
 read_prompt() {
   local prompt=$1
   local allow_quit=${2:-no}
-  printf '%s' "$prompt"
+  printf '%s' "$prompt" >/dev/tty
   read -r answer < /dev/tty || answer=''
   answer=$(trim "$answer")
   if [ "$allow_quit" = yes ] && { [ "$answer" = q ] || [ "$answer" = Q ]; }; then
@@ -124,11 +124,34 @@ confirm() {
     fi
     answer=$(trim "$answer")
     case "${answer}" in
-      y|Y|yes|YES|Yes) return 0 ;; 
-      n|N|no|NO|No) return 1 ;; 
-      *) printf 'Please answer y or n.\n' ;; 
+      y|Y|yes|YES|Yes) return 0 ;;
+      n|N|no|NO|No) return 1 ;;
+      *) printf 'Please answer y or n.\n' ;;
     esac
   done
+}
+
+validate_password() {
+  # Password policy must match the web installer's passwordError() function:
+  # at least 8 characters, one uppercase, one lowercase, one non-letter.
+  local p=$1
+  if [ "${#p}" -lt 8 ]; then
+    printf 'Password must be at least 8 characters.\n' >/dev/tty
+    return 1
+  fi
+  case "$p" in
+    *[A-Z]*) ;;
+    *) printf 'Password must contain at least one uppercase letter.\n' >/dev/tty; return 1 ;;
+  esac
+  case "$p" in
+    *[a-z]*) ;;
+    *) printf 'Password must contain at least one lowercase letter.\n' >/dev/tty; return 1 ;;
+  esac
+  if ! printf '%s' "$p" | grep -q '[^a-zA-Z]'; then
+    printf 'Password must contain at least one digit or special character.\n' >/dev/tty
+    return 1
+  fi
+  return 0
 }
 
 validate_ipv4() {
@@ -164,7 +187,7 @@ prompt_nonempty() {
       printf '%s' "$answer"
       return 0
     fi
-    printf 'Value cannot be empty.\n'
+    printf 'Value cannot be empty.\n' >/dev/tty
   done
 }
 
@@ -173,16 +196,16 @@ prompt_password() {
   local password
   if command -v stty >/dev/null 2>&1; then
     while :; do
-      printf '%s' "$prompt"
+      printf '%s' "$prompt" >/dev/tty
       stty -echo
       read -r password < /dev/tty || password=''
       stty echo
-      printf '\n'
+      printf '\n' >/dev/tty
       if [ -n "$password" ]; then
         printf '%s' "$password"
         return 0
       fi
-      printf 'Password cannot be empty.\n'
+      printf 'Password cannot be empty.\n' >/dev/tty
     done
   else
     prompt_nonempty "$prompt" ''
@@ -194,12 +217,15 @@ prompt_password_confirm() {
   local password confirm
   while :; do
     password=$(prompt_password "$prompt")
+    if ! validate_password "$password"; then
+      continue
+    fi
     confirm=$(prompt_password 'Confirm password: ')
     if [ "$password" = "$confirm" ]; then
       printf '%s' "$password"
       return 0
     fi
-    printf 'Passwords do not match. Please try again.\n'
+    printf 'Passwords do not match. Please try again.\n' >/dev/tty
   done
 }
 
@@ -212,7 +238,10 @@ detect_disks() {
       loop*|ram*|rom*|sr*|fd*) continue ;;
     esac
     [ "$type" = disk ] || continue
-    printf '%s|%s\n' "$name" "$size"
+    part_count=$(lsblk -n -o NAME,TYPE "/dev/${name}" 2>/dev/null | awk '$2 == "part" {count++} END {print count+0}')
+    has_data=false
+    [ "$part_count" -gt 0 ] && has_data=true
+    printf '%s|%s|%s\n' "$name" "$size" "$has_data"
   done
 }
 
@@ -276,14 +305,15 @@ detect_ifaces() {
 choose_interface() {
   local prompt=$1
   local current=$2
+  local exclude=${3:-}
   local iface
   while :; do
     iface_list=$(detect_ifaces)
     if [ -n "$iface_list" ]; then
-      printf '\nDetected interfaces:\n'
-      printf '%s' "$iface_list" | nl -w2 -s') '
+      printf '\nDetected interfaces:\n' >/dev/tty
+      printf '%s' "$iface_list" | nl -w2 -s') ' >/dev/tty
     else
-      printf '\nNo interfaces detected automatically.\n'
+      printf '\nNo interfaces detected automatically.\n' >/dev/tty
     fi
     if [ -n "$current" ]; then
       iface=$(read_prompt "$prompt [$current] (Q to quit): " yes)
@@ -292,10 +322,15 @@ choose_interface() {
       iface=$(read_prompt "$prompt (Q to quit): " yes)
     fi
     iface=$(printf '%s' "$iface" | tr -d '[:space:]')
-    if [ -n "$iface" ]; then
-      printf '%s' "$iface"
-      return 0
+    if [ -z "$iface" ]; then
+      continue
     fi
+    if [ -n "$exclude" ] && [ "$iface" = "$exclude" ]; then
+      printf 'LAN and WAN interfaces must be different. Please choose another interface.\n' >/dev/tty
+      continue
+    fi
+    printf '%s' "$iface"
+    return 0
   done
 }
 
@@ -310,7 +345,7 @@ prompt_ip() {
       printf '%s' "$answer"
       return 0
     fi
-    printf 'Invalid IPv4 address.\n'
+    printf 'Invalid IPv4 address.\n' >/dev/tty
   done
 }
 
@@ -322,8 +357,8 @@ prompt_prefix() {
     answer=$(read_prompt "$prompt${default:+ [$default]}: " yes)
     answer=${answer:-$default}
     case "$answer" in
-      [0-9]|[1-2][0-9]|3[0-2]) printf '%s' "$answer"; return 0 ;; 
-      *) printf 'Invalid prefix length (0-32).\n' ;; 
+      [0-9]|[1-2][0-9]|3[0-2]) printf '%s' "$answer"; return 0 ;;
+      *) printf 'Invalid prefix length (0-32).\n' >/dev/tty ;;
     esac
   done
 }
@@ -402,7 +437,7 @@ main() {
   hostname=$(prompt_nonempty 'Enter hostname' 'dayshield')
   password=$(prompt_password_confirm 'Enter admin password: ')
 
-  lan_iface=$(choose_interface 'Enter LAN interface name' '')
+  lan_iface=$(choose_interface 'Enter LAN interface name' '' '')
   lan_ip=$(prompt_ip 'Enter LAN IP address' '192.168.1.1')
   lan_prefix=$(prompt_prefix 'Enter LAN network prefix length' '24')
   if confirm 'Enable LAN DHCP?' yes; then
@@ -416,15 +451,15 @@ main() {
     dhcp_end=''
   fi
 
-  wan_iface=$(choose_interface 'Enter WAN interface name' '')
+  wan_iface=$(choose_interface 'Enter WAN interface name' '' "$lan_iface")
   printf '\nWAN connection types:\n'
   printf '  1) DHCP\n'
   printf '  2) PPPoE\n'
   while :; do
     case "$(read_prompt 'Select WAN type [1-2] (Q to quit): ' yes)" in
-      1|dhcp|DHCP) wan_type=dhcp; break ;; 
-      2|pppoe|PPPoE) wan_type=pppoe; break ;; 
-      *) printf 'Please enter 1 or 2.\n' ;; 
+      1|dhcp|DHCP) wan_type=dhcp; break ;;
+      2|pppoe|PPPoE) wan_type=pppoe; break ;;
+      *) printf 'Please enter 1 or 2.\n' ;;
     esac
   done
   if [ "$wan_type" = pppoe ]; then
