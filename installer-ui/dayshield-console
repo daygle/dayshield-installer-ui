@@ -133,7 +133,7 @@ confirm() {
 
 validate_password() {
   # Password policy must match the web installer's passwordError() function:
-  # at least 8 characters, one uppercase, one lowercase, one non-letter.
+  # at least 8 characters, one uppercase, one lowercase, one digit or special character.
   local p=$1
   if [ "${#p}" -lt 8 ]; then
     printf 'Password must be at least 8 characters.\n' >/dev/tty
@@ -322,15 +322,14 @@ choose_interface() {
       iface=$(read_prompt "$prompt (Q to quit): " yes)
     fi
     iface=$(printf '%s' "$iface" | tr -d '[:space:]')
-    if [ -z "$iface" ]; then
-      continue
+    if [ -n "$iface" ]; then
+      if [ -n "$exclude" ] && [ "$iface" = "$exclude" ]; then
+        printf 'LAN and WAN interfaces must be different. Please choose another interface.\n' >/dev/tty
+        continue
+      fi
+      printf '%s' "$iface"
+      return 0
     fi
-    if [ -n "$exclude" ] && [ "$iface" = "$exclude" ]; then
-      printf 'LAN and WAN interfaces must be different. Please choose another interface.\n' >/dev/tty
-      continue
-    fi
-    printf '%s' "$iface"
-    return 0
   done
 }
 
