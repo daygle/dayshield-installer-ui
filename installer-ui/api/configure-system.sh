@@ -60,7 +60,7 @@ validate_interface_param() {
   if ! printf '%s' "$value" | grep -Eq '^[A-Za-z0-9_.:-]+$'; then
     printf '{"error":"Invalid %s interface name"}\n' "$label"; exit 1
   fi
-  if [ ! -e "/sys/class/net/${value}" ]; then
+  if [ ! -d "/sys/class/net/${value}" ]; then
     printf '{"error":"%s interface not found on system"}\n' "$label"; exit 1
   fi
 }
