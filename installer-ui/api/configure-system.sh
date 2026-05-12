@@ -50,9 +50,9 @@ trim_ws() {
 
 validate_interface_param() {
   # Usage: validate_interface_param VALUE PARAM_NAME LABEL
-  value="$1"
-  param_name="$2"
-  label="$3"
+  value="${1}"
+  param_name="${2}"
+  label="${3}"
 
   if [ -z "$value" ]; then
     printf '{"error":"Missing required parameter: %s"}\n' "$param_name"; exit 1
