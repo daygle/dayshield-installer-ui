@@ -56,7 +56,7 @@ validate_interface_param() {
   if ! printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_-]*$'; then
     printf '{"error":"Invalid %s interface name"}\n' "$3"; exit 1
   fi
-  # /sys/class/net entries are symlinks, so use -e to check existence rather than -d.
+  # /sys/class/net entries may be symlinks or directories; use -e so either works.
   if [ ! -e "/sys/class/net/${1}" ]; then
     printf '{"error":"%s interface not found on system"}\n' "$3"; exit 1
   fi
