@@ -53,10 +53,10 @@ validate_interface_param() {
   if [ -z "$1" ]; then
     printf '{"error":"Missing required parameter: %s"}\n' "$2"; exit 1
   fi
-  if ! printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_]+$'; then
+  if ! printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_-]+$'; then
     printf '{"error":"Invalid %s interface name"}\n' "$3"; exit 1
   fi
-  # /sys/class/net entries are symlinks, so use -e for existence rather than -d.
+  # /sys/class/net entries are symlinks, so use -e to check existence rather than -d.
   if [ ! -e "/sys/class/net/${1}" ]; then
     printf '{"error":"%s interface not found on system"}\n' "$3"; exit 1
   fi
