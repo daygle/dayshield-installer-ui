@@ -30,7 +30,7 @@ build_query_string() {
   while [ $# -gt 0 ]; do
     key=$1; value=$2; shift 2
     [ -n "$qs" ] && qs="${qs}&"
-    qs="${qs}${key}=$(urlencode "$value")"
+    qs="${qs}$(urlencode "$key")=$(urlencode "$value")"
   done
   printf '%s' "$qs"
 }
