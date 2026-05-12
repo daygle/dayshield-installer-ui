@@ -50,18 +50,18 @@ trim_ws() {
 
 validate_interface_param() {
   # Usage: validate_interface_param VALUE PARAM_NAME LABEL
-  interface_value="$1"
-  interface_param="$2"
-  interface_label="$3"
+  value="$1"
+  param_name="$2"
+  label="$3"
 
-  if [ -z "$interface_value" ]; then
-    printf '{"error":"Missing required parameter: %s"}\n' "$interface_param"; exit 1
+  if [ -z "$value" ]; then
+    printf '{"error":"Missing required parameter: %s"}\n' "$param_name"; exit 1
   fi
-  if ! printf '%s' "$interface_value" | grep -Eq '^[A-Za-z0-9_.:-]+$'; then
-    printf '{"error":"Invalid %s interface name"}\n' "$interface_label"; exit 1
+  if ! printf '%s' "$value" | grep -Eq '^[A-Za-z0-9_.:-]+$'; then
+    printf '{"error":"Invalid %s interface name"}\n' "$label"; exit 1
   fi
-  if [ ! -e "/sys/class/net/${interface_value}" ]; then
-    printf '{"error":"%s interface not found on system"}\n' "$interface_label"; exit 1
+  if [ ! -e "/sys/class/net/${value}" ]; then
+    printf '{"error":"%s interface not found on system"}\n' "$label"; exit 1
   fi
 }
 
