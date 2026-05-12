@@ -53,7 +53,7 @@ validate_interface_param() {
   if [ -z "$1" ]; then
     printf '{"error":"Missing required parameter: %s"}\n' "$2"; exit 1
   fi
-  if ! printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_-]*$'; then
+  if ! printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_]+$'; then
     printf '{"error":"Invalid %s interface name"}\n' "$3"; exit 1
   fi
   # /sys/class/net entries may be symlinks or directories; use -e so either works.
