@@ -21,6 +21,7 @@ printf '\r\n'
 REPLIED=0
 ISO_SCAN_MOUNT=""
 
+# shellcheck disable=SC2317  # cleanup is invoked via trap.
 cleanup() {
   status=$?
 
