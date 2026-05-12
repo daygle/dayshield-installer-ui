@@ -63,6 +63,8 @@ validate_interface_param() {
   if [ ! -e "/sys/class/net/${interface_value}" ]; then
     printf '{"error":"%s interface not found on system"}\n' "$interface_label"; exit 1
   fi
+
+  unset interface_value interface_param interface_label
 }
 
 QS="${QUERY_STRING:-}"
