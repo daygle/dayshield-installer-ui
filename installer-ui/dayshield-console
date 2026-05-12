@@ -30,7 +30,7 @@ build_query_string() {
   while [ $# -gt 0 ]; do
     key=$1; value=$2; shift 2
     [ -n "$qs" ] && qs="${qs}&"
-    qs="${qs}$(urlencode "$key")=$(urlencode "$value")"
+    qs="${qs}${key}=$(urlencode "$value")"
   done
   printf '%s' "$qs"
 }
@@ -404,7 +404,7 @@ prompt_dhcp_range() {
 countdown_reboot() {
   local secs=${1:-10}
   printf '\nRemove the installation media (ISO, CD/DVD, USB) now.\n'
-  while [ $secs -gt 0 ]; do
+  while [ "$secs" -gt 0 ]; do
     printf '\rRebooting in %2s seconds... ' "$secs"
     sleep 1
     secs=$((secs - 1))

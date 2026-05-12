@@ -125,7 +125,9 @@ fi
 if [ -z "$WAN_IFACE" ]; then
   printf '{"error":"Missing required parameter: wan_iface"}\n'; exit 1
 fi
-[ -n "$IFACE" ] && [ -n "$WAN_IFACE" ] || { printf '{"error":"Invalid interface selection"}\n'; exit 1; }
+if [ -z "$IFACE" ] || [ -z "$WAN_IFACE" ]; then
+  printf '{"error":"Invalid interface selection"}\n'; exit 1
+fi
 if ! printf '%s' "$IFACE" | grep -Eq '^[A-Za-z0-9_.:-]+$'; then
   printf '{"error":"Invalid LAN interface name"}\n'; exit 1
 fi
