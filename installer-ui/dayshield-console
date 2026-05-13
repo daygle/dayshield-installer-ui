@@ -365,6 +365,12 @@ choose_interface() {
     fi
     iface=$(printf '%s' "$iface" | tr -d '[:space:]')
     if [ -n "$iface" ]; then
+      if [ -n "$iface_list" ] && printf '%s' "$iface" | grep -Eq '^[0-9]+$'; then
+        selected=$(printf '%s\n' "$iface_list" | sed -n "${iface}p")
+        if [ -n "$selected" ]; then
+          iface="$selected"
+        fi
+      fi
       if [ -n "$exclude" ] && [ "$iface" = "$exclude" ]; then
         printf 'LAN and WAN interfaces must be different. Please choose another interface.\n' >/dev/tty
         continue
@@ -478,7 +484,7 @@ main() {
   hostname=$(prompt_nonempty 'Enter hostname' 'dayshield')
   password=$(prompt_password_confirm 'Enter admin password: ')
 
-  lan_iface=$(choose_interface 'Enter LAN interface name' '' '')
+  lan_iface=$(choose_interface 'Enter LAN interface name or number' '' '')
   lan_ip=$(prompt_ip 'Enter LAN IP address' '192.168.1.1')
   lan_prefix=$(prompt_prefix 'Enter LAN network prefix length' '24')
   if confirm 'Enable LAN DHCP?' yes; then
@@ -492,7 +498,7 @@ main() {
     dhcp_end=''
   fi
 
-  wan_iface=$(choose_interface 'Enter WAN interface name' '' "$lan_iface")
+  wan_iface=$(choose_interface 'Enter WAN interface name or number' '' "$lan_iface")
   printf '\nWAN connection types:\n'
   printf '  1) DHCP\n'
   printf '  2) PPPoE\n'
