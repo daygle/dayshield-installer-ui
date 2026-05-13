@@ -109,6 +109,22 @@ function installer() {
       return this.disks.find(d => d.name === this.selectedDisk) || null;
     },
 
+    isValidIpv4(value) {
+      const text = (value || '').trim();
+      if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(text)) return false;
+      const octets = text.split('.');
+      return octets.length === 4 && octets.every(o => {
+        const n = Number(o);
+        return Number.isInteger(n) && n >= 0 && n <= 255;
+      });
+    },
+
+    partitionPath(number) {
+      const disk = (this.selectedDisk || '').trim();
+      if (!disk) return '';
+      return `/dev/${disk}${/^(nvme|mmcblk)/.test(disk) ? 'p' : ''}${number}`;
+    },
+
     canProceed() {
       const lan = (this.iface || '').trim();
       const wan = (this.wanIface || '').trim();
@@ -118,11 +134,11 @@ function installer() {
         case 2: return !!this.selectedDisk;
         case 3: return false; // automated - driven by runInstallPipeline()
         case 4: {
-          const ipValid = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/.test((this.lanIp || '').trim());
+          const ipValid = this.isValidIpv4(this.lanIp);
           const prefix = Number((this.lanPrefix || '').trim());
           const prefixValid = Number.isInteger(prefix) && prefix >= 1 && prefix <= 32;
-          const dhcpStartValid = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/.test((this.dhcpStart || '').trim());
-          const dhcpEndValid = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/.test((this.dhcpEnd || '').trim());
+          const dhcpStartValid = this.isValidIpv4(this.dhcpStart);
+          const dhcpEndValid = this.isValidIpv4(this.dhcpEnd);
           return (
             this.hostname.length > 0 &&
             this.password.length >= 8 &&

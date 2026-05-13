@@ -386,8 +386,8 @@ prompt_prefix() {
     answer=$(read_prompt "$prompt${default:+ [$default]}: " yes)
     answer=${answer:-$default}
     case "$answer" in
-      [0-9]|[1-2][0-9]|3[0-2]) printf '%s' "$answer"; return 0 ;;
-      *) printf 'Invalid prefix length (0-32).\n' >/dev/tty ;;
+      [1-9]|[1-2][0-9]|3[0-2]) printf '%s' "$answer"; return 0 ;;
+      *) printf 'Invalid prefix length (1-32).\n' >/dev/tty ;;
     esac
   done
 }

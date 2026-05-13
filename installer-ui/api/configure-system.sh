@@ -48,6 +48,25 @@ trim_ws() {
   printf '%s' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
 }
 
+validate_ipv4() {
+  _ip="$1"
+  case "$_ip" in
+    ''|*[!0-9.]*|.*|*.) return 1 ;;
+  esac
+  IFS='.' read -r _o1 _o2 _o3 _o4 << EOF
+$_ip
+EOF
+  for _octet in "$_o1" "$_o2" "$_o3" "$_o4"; do
+    case "$_octet" in
+      ''|*[!0-9]*) return 1 ;;
+    esac
+    if [ "$_octet" -lt 0 ] || [ "$_octet" -gt 255 ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
 validate_interface_param() {
   # Usage: validate_interface_param VALUE PARAM_NAME LABEL
   if [ -z "$1" ]; then
@@ -149,7 +168,7 @@ if [ "$WAN_TYPE" = "pppoe" ] && { [ -z "$WAN_PPPOE_USER" ] || [ -z "$WAN_PPPOE_P
   printf '{"error":"PPPoE selected but username/password missing"}\n'; exit 1
 fi
 
-if ! printf '%s' "$LAN_IP" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+if ! validate_ipv4 "$LAN_IP"; then
   printf '{"error":"Invalid lan_ip"}\n'; exit 1
 fi
 if ! printf '%s' "$LAN_PREFIX" | grep -Eq '^[0-9]{1,2}$' || [ "$LAN_PREFIX" -lt 1 ] || [ "$LAN_PREFIX" -gt 32 ]; then
@@ -158,10 +177,10 @@ fi
 if [ "$LAN_DHCP_ENABLE" != "yes" ] && [ "$LAN_DHCP_ENABLE" != "no" ]; then
   printf '{"error":"Invalid lan_dhcp_enable: expected yes or no"}\n'; exit 1
 fi
-if ! printf '%s' "$DHCP_START" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+if ! validate_ipv4 "$DHCP_START"; then
   printf '{"error":"Invalid dhcp_start"}\n'; exit 1
 fi
-if ! printf '%s' "$DHCP_END" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+if ! validate_ipv4 "$DHCP_END"; then
   printf '{"error":"Invalid dhcp_end"}\n'; exit 1
 fi
 
