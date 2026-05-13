@@ -48,6 +48,39 @@ trim_ws() {
   printf '%s' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
 }
 
+validate_ipv4() {
+  _ip="$1"
+  case "$_ip" in
+    ''|*[!0-9.]*|.*|*.) return 1 ;;
+  esac
+  IFS='.' read -r _o1 _o2 _o3 _o4 << EOF
+$_ip
+EOF
+  for _octet in "$_o1" "$_o2" "$_o3" "$_o4"; do
+    case "$_octet" in
+      ''|*[!0-9]*) return 1 ;;
+    esac
+    if [ "$_octet" -lt 0 ] || [ "$_octet" -gt 255 ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+validate_interface_param() {
+  # Usage: validate_interface_param VALUE PARAM_NAME LABEL
+  if [ -z "$1" ]; then
+    printf '{"error":"Missing required parameter: %s"}\n' "$2"; exit 1
+  fi
+  if ! printf '%s' "$1" | grep -Eq '^[A-Za-z0-9]+([._-][A-Za-z0-9]+)*$'; then
+    printf '{"error":"Invalid %s interface name"}\n' "$3"; exit 1
+  fi
+  # /sys/class/net entries may be symlinks or directories; use -e so either works.
+  if [ ! -e "/sys/class/net/${1}" ]; then
+    printf '{"error":"%s interface not found on system"}\n' "$3"; exit 1
+  fi
+}
+
 QS="${QUERY_STRING:-}"
 if [ "${REQUEST_METHOD:-}" = "POST" ] && [ -n "${CONTENT_LENGTH:-}" ]; then
   # Validate CONTENT_LENGTH is a non-negative integer and cap at 65536 (64 KiB)
@@ -99,6 +132,14 @@ DHCP_END=$(trim_ws "$DHCP_END")
 [ -n "$DHCP_START" ] || DHCP_START="192.168.1.100"
 [ -n "$DHCP_END" ] || DHCP_END="192.168.1.199"
 
+# Validate interfaces first in one explicit flow to make data validation
+# obvious before any branching logic uses IFACE/WAN_IFACE values.
+validate_interface_param "$IFACE" "iface" "LAN"
+validate_interface_param "$WAN_IFACE" "wan_iface" "WAN"
+if [ "$WAN_IFACE" = "$IFACE" ]; then
+  printf '{"error":"WAN and LAN interfaces must be different"}\n'; exit 1
+fi
+
 # ── Validate ──────────────────────────────────────────────────────
 if [ -z "$DISK" ]; then
   printf '{"error":"Missing required parameter: disk"}\n'; exit 1
@@ -119,37 +160,15 @@ _pwlen=$(printf '%s' "$PASSWORD" | wc -c)
 if [ "$_pwlen" -gt 128 ]; then
   printf '{"error":"Password must be 128 characters or fewer"}\n'; exit 1
 fi
-if [ -z "$IFACE" ]; then
-  printf '{"error":"Missing required parameter: iface"}\n'; exit 1
-fi
-if [ -z "$WAN_IFACE" ]; then
-  printf '{"error":"Missing required parameter: wan_iface"}\n'; exit 1
-fi
-[ -n "$IFACE" ] && [ -n "$WAN_IFACE" ] || { printf '{"error":"Invalid interface selection"}\n'; exit 1; }
-if ! printf '%s' "$IFACE" | grep -Eq '^[A-Za-z0-9_.:-]+$'; then
-  printf '{"error":"Invalid LAN interface name"}\n'; exit 1
-fi
-if ! printf '%s' "$WAN_IFACE" | grep -Eq '^[A-Za-z0-9_.:-]+$'; then
-  printf '{"error":"Invalid WAN interface name"}\n'; exit 1
-fi
-if [ ! -e "/sys/class/net/${IFACE}" ]; then
-  printf '{"error":"LAN interface not found on system"}\n'; exit 1
-fi
-if [ ! -e "/sys/class/net/${WAN_IFACE}" ]; then
-  printf '{"error":"WAN interface not found on system"}\n'; exit 1
-fi
 [ -n "$WAN_TYPE" ] || WAN_TYPE="dhcp"
 if [ "$WAN_TYPE" != "dhcp" ] && [ "$WAN_TYPE" != "pppoe" ]; then
   printf '{"error":"Invalid wan_type: expected dhcp or pppoe"}\n'; exit 1
-fi
-if [ "$WAN_IFACE" = "$IFACE" ]; then
-  printf '{"error":"WAN and LAN interfaces must be different"}\n'; exit 1
 fi
 if [ "$WAN_TYPE" = "pppoe" ] && { [ -z "$WAN_PPPOE_USER" ] || [ -z "$WAN_PPPOE_PASS" ]; }; then
   printf '{"error":"PPPoE selected but username/password missing"}\n'; exit 1
 fi
 
-if ! printf '%s' "$LAN_IP" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+if ! validate_ipv4 "$LAN_IP"; then
   printf '{"error":"Invalid lan_ip"}\n'; exit 1
 fi
 if ! printf '%s' "$LAN_PREFIX" | grep -Eq '^[0-9]{1,2}$' || [ "$LAN_PREFIX" -lt 1 ] || [ "$LAN_PREFIX" -gt 32 ]; then
@@ -158,10 +177,10 @@ fi
 if [ "$LAN_DHCP_ENABLE" != "yes" ] && [ "$LAN_DHCP_ENABLE" != "no" ]; then
   printf '{"error":"Invalid lan_dhcp_enable: expected yes or no"}\n'; exit 1
 fi
-if ! printf '%s' "$DHCP_START" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+if ! validate_ipv4 "$DHCP_START"; then
   printf '{"error":"Invalid dhcp_start"}\n'; exit 1
 fi
-if ! printf '%s' "$DHCP_END" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+if ! validate_ipv4 "$DHCP_END"; then
   printf '{"error":"Invalid dhcp_end"}\n'; exit 1
 fi
 

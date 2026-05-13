@@ -398,8 +398,8 @@ prompt_prefix() {
     answer=$(read_prompt "$prompt${default:+ [$default]}: " yes)
     answer=${answer:-$default}
     case "$answer" in
-      [0-9]|[1-2][0-9]|3[0-2]) printf '%s' "$answer"; return 0 ;;
-      *) printf 'Invalid prefix length (0-32).\n' >/dev/tty ;;
+      [1-9]|[1-2][0-9]|3[0-2]) printf '%s' "$answer"; return 0 ;;
+      *) printf 'Invalid prefix length (1-32).\n' >/dev/tty ;;
     esac
   done
 }
@@ -416,7 +416,7 @@ prompt_dhcp_range() {
 countdown_reboot() {
   local secs=${1:-10}
   printf '\nRemove the installation media (ISO, CD/DVD, USB) now.\n'
-  while [ $secs -gt 0 ]; do
+  while [ "$secs" -gt 0 ]; do
     printf '\rRebooting in %2s seconds... ' "$secs"
     sleep 1
     secs=$((secs - 1))

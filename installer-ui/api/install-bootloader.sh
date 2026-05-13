@@ -253,13 +253,21 @@ if [ ! -s "$GRUB_CFG" ]; then
   KERNEL_FILE=""
   INITRD_FILE=""
   if [ -f "${TARGET}/boot/vmlinuz" ]; then
-    KERNEL_FILE="/boot/vmlinuz"
-  elif ls "${TARGET}/boot/vmlinuz-"* >/dev/null 2>&1; then
-    KERNEL_FILE=$(ls -1 "${TARGET}/boot/vmlinuz-"* | head -n1 | xargs basename)
+    KERNEL_FILE="vmlinuz"
+  else
+    for kpath in "${TARGET}"/boot/vmlinuz-*; do
+      if [ -e "$kpath" ]; then
+        KERNEL_FILE=$(basename "$kpath")
+        break
+      fi
+    done
   fi
-  if ls "${TARGET}/boot/initrd.img"* >/dev/null 2>&1; then
-    INITRD_FILE=$(ls -1 "${TARGET}/boot/initrd.img"* | head -n1 | xargs basename)
-  fi
+  for ipath in "${TARGET}"/boot/initrd.img*; do
+    if [ -e "$ipath" ]; then
+      INITRD_FILE=$(basename "$ipath")
+      break
+    fi
+  done
   
   if [ -z "$KERNEL_FILE" ] || [ -z "$INITRD_FILE" ]; then
     WARNING_MSG="${WARNING_MSG:+$WARNING_MSG; }Missing kernel/initrd: kernel=$KERNEL_FILE initrd=$INITRD_FILE"

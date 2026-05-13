@@ -233,7 +233,7 @@
             </div>
             <div>
               <p class="font-semibold text-white">BIOS Boot Partition</p>
-              <p class="text-sm text-gray-400">1 MiB - bios_grub - <span x-text="'/dev/' + selectedDisk + '1'"></span></p>
+              <p class="text-sm text-gray-400">1 MiB - bios_grub - <span x-text="partitionPath(1)"></span></p>
             </div>
           </div>
           <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
@@ -242,7 +242,7 @@
             </div>
             <div>
               <p class="font-semibold text-white">EFI System Partition</p>
-              <p class="text-sm text-gray-400">512 MiB - FAT32 - <span x-text="'/dev/' + selectedDisk + '2'"></span></p>
+              <p class="text-sm text-gray-400">512 MiB - FAT32 - <span x-text="partitionPath(2)"></span></p>
             </div>
           </div>
           <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
@@ -251,7 +251,7 @@
             </div>
             <div>
               <p class="font-semibold text-white">Root Partition</p>
-              <p class="text-sm text-gray-400">Remaining space - ext4 - <span x-text="'/dev/' + selectedDisk + '3'"></span></p>
+              <p class="text-sm text-gray-400">Remaining space - ext4 - <span x-text="partitionPath(3)"></span></p>
             </div>
           </div>
         </div>
@@ -480,15 +480,15 @@
           </div>
           <div class="summary-row">
             <span class="summary-label">BIOS boot partition</span>
-            <span class="summary-value" x-text="'/dev/' + selectedDisk + '1  (bios_grub, 1 MiB)'"></span>
+            <span class="summary-value" x-text="partitionPath(1) + '  (bios_grub, 1 MiB)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">EFI partition</span>
-            <span class="summary-value" x-text="'/dev/' + selectedDisk + '2  (FAT32, 512 MiB)'"></span>
+            <span class="summary-value" x-text="partitionPath(2) + '  (FAT32, 512 MiB)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">Root partition</span>
-            <span class="summary-value" x-text="'/dev/' + selectedDisk + '3  (ext4, remaining)'"></span>
+            <span class="summary-value" x-text="partitionPath(3) + '  (ext4, remaining)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">Bootloader</span>
