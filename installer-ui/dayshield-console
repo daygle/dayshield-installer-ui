@@ -21,8 +21,20 @@ quit_wizard() {
 }
 
 urlencode() {
-  # Encode every byte using percent-encoding.
-  printf '%s' "$1" | od -An -tx1 | tr '[:lower:]' '[:upper:]' | tr -s ' \n' '\n' | awk '{printf "%%%s", $1}'
+  local string="$1"
+  local c hex
+
+  while [ -n "$string" ]; do
+    c=$(printf '%s' "$string" | cut -c1)
+    string=$(printf '%s' "$string" | cut -c2-)
+    case "$c" in
+      [a-zA-Z0-9._~-]) printf '%s' "$c" ;;
+      ' ') printf '+' ;;
+      *)
+        hex=$(printf '%s' "$c" | od -An -tx1 | tr '[:lower:]' '[:upper:]' | tr -d ' \n')
+        printf '%%%s' "$hex" ;;
+    esac
+  done
 }
 
 build_query_string() {

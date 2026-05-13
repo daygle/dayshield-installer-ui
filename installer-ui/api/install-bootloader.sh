@@ -20,10 +20,41 @@ export PATH
 printf 'Content-Type: application/json\r\n'
 printf '\r\n'
 
+decode_urlencoded() {
+  local s="$1"
+  local out=""
+  local hex
+
+  while [ -n "$s" ]; do
+    case "$s" in
+      +*)
+        out="${out} "
+        s="${s#?}"
+        ;;
+      %??*)
+        hex="${s#%}"
+        hex="${hex%${hex#??}}"
+        s="${s#%??}"
+        out="${out}$(printf '\\x%s' "$hex")"
+        ;;
+      *)
+        out="${out}${s%${s#?}}"
+        s="${s#?}"
+        ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
+extract_query_param() {
+  printf '%s' "$1" | sed 's/.*disk=\([^&]*\).*/\1/'
+}
+
 # ── Parse CGI query string ────────────────────────────────────────
 DISK=""
 if [ -n "${QUERY_STRING:-}" ]; then
-  DISK=$(printf '%s' "$QUERY_STRING" | sed 's/.*disk=\([^&]*\).*/\1/' | sed 's/%2F/\//g')
+  DISK=$(extract_query_param "$QUERY_STRING")
+  DISK=$(decode_urlencoded "$DISK")
 fi
 
 if [ -z "$DISK" ]; then
