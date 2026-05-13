@@ -222,7 +222,7 @@ if [ ! -s "$GRUB_CFG" ]; then
   KERNEL_FILE=""
   INITRD_FILE=""
   if [ -f "${TARGET}/boot/vmlinuz" ]; then
-    KERNEL_FILE="/boot/vmlinuz"
+    KERNEL_FILE="vmlinuz"
   else
     for kpath in "${TARGET}"/boot/vmlinuz-*; do
       if [ -e "$kpath" ]; then
