@@ -316,11 +316,11 @@ PYEOF
   fi
 
 if [ ! -f "${TARGET}/etc/shadow" ]; then
-  printf '{"error":"/etc/shadow not found in target — the rootfs may not have been installed correctly or the shadow file is absent from the image"}\n'; exit 1
+  printf '{"error":"/etc/shadow not found in target - the rootfs may not have been installed correctly or the shadow file is absent from the image"}\n'; exit 1
 fi
 ROOT_COUNT=$(awk -F: '$1=="root"{c++} END{print c+0}' "${TARGET}/etc/shadow")
 if [ "$ROOT_COUNT" -eq 0 ]; then
-  printf '{"error":"No root entry found in /etc/shadow — cannot set root password"}\n'; exit 1
+  printf '{"error":"No root entry found in /etc/shadow - cannot set root password"}\n'; exit 1
 fi
 if [ "$ROOT_COUNT" -gt 1 ]; then
   printf '{"error":"Invalid /etc/shadow: multiple root entries found"}\n'; exit 1
@@ -329,7 +329,7 @@ SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
 sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
 HASH_IN_SHADOW=$(grep '^root:' "${TARGET}/etc/shadow" | head -n1 | cut -d: -f2)
 if [ "$HASH_IN_SHADOW" != "$HASH" ]; then
-  printf '{"error":"Password was not applied — root entry in /etc/shadow was not updated"}\n'; exit 1
+  printf '{"error":"Password was not applied - root entry in /etc/shadow was not updated"}\n'; exit 1
 fi
 fi
 
@@ -340,13 +340,13 @@ if [ -f "${TARGET}/etc/ssh/sshd_config" ]; then
 fi
 
 # ── Create DayShield admin.json (management UI credentials) ──────
-# dayshield-core uses its own Argon2id auth store — separate from Linux root.
+# dayshield-core uses its own Argon2id auth store - separate from Linux root.
 # Use the binary in the target rootfs to hash and write the credentials so
 # the same code/parameters are used at install time and at runtime.
 if chroot "$TARGET" /usr/local/sbin/dayshield-core init-admin "$PASSWORD" >/dev/null 2>&1; then
   chmod 600 "${TARGET}/etc/dayshield/admin.json" 2>/dev/null || true
 else
-  printf '{"error":"Failed to initialise DayShield admin credentials — dayshield-core init-admin failed"}\n'; exit 1
+  printf '{"error":"Failed to initialise DayShield admin credentials - dayshield-core init-admin failed"}\n'; exit 1
 fi
 
 # ── Configure LAN interface ───────────────────────────────────────

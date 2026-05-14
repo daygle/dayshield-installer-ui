@@ -40,7 +40,7 @@ preferred_iface() {
     fi
   done
 
-  # Only one NIC present — use it.
+  # Only one NIC present - use it.
   [ -n "$first_iface" ] && printf '%s\n' "$first_iface" && return 0
   return 1
 }
