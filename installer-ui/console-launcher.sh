@@ -22,12 +22,12 @@ supports_color() {
 }
 
 if supports_color; then
-  C_RESET='\033[0m'
-  C_BOLD='\033[1m'
-  C_CYAN='\033[36m'
-  C_GREEN='\033[32m'
-  C_YELLOW='\033[33m'
-  C_RED='\033[31m'
+  C_RESET="$(printf '\033[0m')"
+  C_BOLD="$(printf '\033[1m')"
+  C_CYAN="$(printf '\033[36m')"
+  C_GREEN="$(printf '\033[32m')"
+  C_YELLOW="$(printf '\033[33m')"
+  C_RED="$(printf '\033[31m')"
 else
   C_RESET=''
   C_BOLD=''
@@ -181,7 +181,7 @@ show_splash() {
   fi
 
   printf "\n\n  ============================================================\n"
-  printf "  %bDayShield Installer%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "  %sDayShield Installer%s\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   printf "  ============================================================\n"
   printf "  Backend listener (8443): %s\n" "${_backend_state}"
   printf "  Local browser detected : %s\n" "${_browser_state}"
@@ -234,7 +234,7 @@ while true; do
   fi
 
   printf "\n\n  ============================================================\n"
-  printf "  %bDayShield Installer - Console Access%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "  %sDayShield Installer - Console Access%s\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   printf "  ============================================================\n"
 
   if [ "${COMPACT_UI}" -eq 1 ]; then
@@ -271,7 +271,6 @@ while true; do
   fi
 
   printf "  Command-Line Options:\n"
-  printf "    [W] Open Web Installer locally\n"
   printf "    [C] Command-line Installer\n"
   printf "    [S] Shell\n"
   printf "    [B] Reboot\n"
@@ -284,23 +283,10 @@ while true; do
   else
     printf "  Local browser: none (remote web access only)\n"
   fi
-  printf "  Enter choice (W/C/S/B/P/R/Q): "
+  printf "  Enter choice (C/S/B/P/R/Q): "
   KEY=""
   read -r KEY 2>/dev/null || KEY=""
   case "$KEY" in
-    [Ww])
-      if [ -n "${BROWSER}" ]; then
-        printf "  Opening web installer locally...\n"
-        launch_browser "${URL}" "${BROWSER}" || true
-      else
-        printf "  No local browser found in this environment.\n"
-        printf "  Use a remote browser and one of the URLs shown above.\n"
-        printf "  Press Enter to return to menu..."
-        read -r _ 2>/dev/null || true
-      fi
-      printf '\033c'
-      continue
-      ;;
     [Cc])
       printf "  Launching command-line installer wizard...\n\n"
 
