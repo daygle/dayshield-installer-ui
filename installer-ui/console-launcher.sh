@@ -100,15 +100,6 @@ status_backend_text() {
   fi
 }
 
-status_browser_text() {
-  _browser="${1:-}"
-  if [ -n "${_browser}" ]; then
-    printf '%s%s%s' "${C_GREEN}" "${_browser}" "${C_RESET}"
-  else
-    printf '%snone%s' "${C_YELLOW}" "${C_RESET}"
-  fi
-}
-
 is_listening_8443() {
   if command -v ss >/dev/null 2>&1; then
     ss -lnt 2>/dev/null | grep -q ':8443 '
@@ -171,25 +162,6 @@ launch_browser() {
   esac
 }
 
-show_splash() {
-  _browser="${1:-}"
-  _backend_state="$(status_backend_text)"
-  _browser_state="$(status_browser_text "${_browser}")"
-  _auto_state="disabled"
-  if should_auto_launch; then
-    _auto_state="enabled"
-  fi
-
-  printf "\n\n  ============================================================\n"
-  printf "  %sDayShield Installer%s\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
-  printf "  ============================================================\n"
-  printf "  Backend listener (8443): %s\n" "${_backend_state}"
-  printf "  Local browser detected : %s\n" "${_browser_state}"
-  printf "  Auto-launch local web  : %s\n" "${_auto_state}"
-  printf "  Layout mode            : %s\n" "$(is_compact_mode && printf 'compact' || printf 'full')"
-  printf "  ------------------------------------------------------------\n"
-}
-
 start_emergency_httpd() {
   if command -v busybox >/dev/null 2>&1 && busybox --list 2>/dev/null | grep -qx httpd; then
     /bin/sh /installer-ui/start-httpd.sh >/dev/null 2>&1 &
@@ -217,7 +189,6 @@ if BROWSER="$(detect_browser 2>/dev/null || true)"; then
   :
 fi
 
-show_splash "${BROWSER}"
 if [ -n "${BROWSER}" ] && should_auto_launch; then
   printf "  Launching local web installer in kiosk mode...\n"
   printf "  Close the browser to return to this menu.\n\n"
@@ -234,7 +205,7 @@ while true; do
   fi
 
   printf "\n\n  ============================================================\n"
-  printf "  %sDayShield Installer - Console Access%s\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
+  printf "  %sDayShield Firewall - Web and Command-Line Installer%s\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   printf "  ============================================================\n"
 
   if [ "${COMPACT_UI}" -eq 1 ]; then
@@ -248,15 +219,24 @@ while true; do
   fi
 
   if [ -n "$LAN_ADDRS" ]; then
+    LAN_COUNT="$(printf "%s\n" "$LAN_ADDRS" | awk 'NF { count++ } END { print count + 0 }')"
+    if [ "${LAN_COUNT}" -eq 1 ]; then
+      WEB_URL_LABEL="Web Installer URL"
+      URL_LABEL="URL"
+    else
+      WEB_URL_LABEL="Web Installer URLs"
+      URL_LABEL="URLs"
+    fi
+
     if [ "${COMPACT_UI}" -eq 0 ]; then
       printf "%s\n" "$LAN_ADDRS" | while read -r iface cidr; do
         ip=${cidr%%/*}
         printf "    %s  %s\n" "$iface" "$ip"
       done
       printf "\n"
-      printf "  Web Installer URLs:\n"
+      printf "  %s:\n" "${WEB_URL_LABEL}"
     else
-      printf "  URLs:\n"
+      printf "  %s:\n" "${URL_LABEL}"
     fi
 
     printf "%s\n" "$LAN_ADDRS" | while read -r iface cidr; do
@@ -278,11 +258,6 @@ while true; do
   printf "    [R] Refresh\n"
   printf "    [Q] Quit\n\n"
 
-  if [ -n "${BROWSER}" ]; then
-    printf "  Local browser: %s\n" "${BROWSER}"
-  else
-    printf "  Local browser: none (remote web access only)\n"
-  fi
   printf "  Enter choice (C/S/B/P/R/Q): "
   KEY=""
   read -r KEY 2>/dev/null || KEY=""
