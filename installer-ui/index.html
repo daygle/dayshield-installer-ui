@@ -135,7 +135,7 @@
         <h2 class="text-3xl font-bold text-white mb-3">Welcome to DayShield</h2>
         <p class="text-gray-400 text-lg mb-2">Firewall - Installer</p>
         <p class="text-gray-500 text-sm mb-8 max-w-md">
-          This installer will guide you through setting up DayShield on your hardware.
+          This installer will guide you through setting up DayShield Firewallon your hardware.
           All operations are performed locally - no internet connection is required.
         </p>
         <div x-show="showConnectHelp" class="bg-blue-900/30 border border-blue-700 rounded-lg p-4 text-left text-sm text-blue-200 max-w-xl w-full mb-6">
@@ -264,7 +264,7 @@
 
       <!-- ── Step 3: Installation Progress ──────────────────── -->
       <div x-show="step === 3" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
-        <h2 class="text-2xl font-bold text-white mb-2">Installing DayShield</h2>
+        <h2 class="text-2xl font-bold text-white mb-2">Installing DayShield Firewall</h2>
         <p class="text-gray-400 text-sm mb-8">Please wait while the system is installed. Do not power off your machine.</p>
 
         <div class="space-y-4 mb-8">
@@ -324,7 +324,7 @@
       <!-- ── Step 4: Configuration ───────────────────────────── -->
       <div x-show="step === 4" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
         <h2 class="text-2xl font-bold text-white mb-2">System Configuration</h2>
-        <p class="text-gray-400 text-sm mb-6">Configure the basic settings for your DayShield installation.</p>
+        <p class="text-gray-400 text-sm mb-6">Configure the basic settings for your DayShield Firewall installation.</p>
 
         <div class="space-y-5">
 
@@ -392,7 +392,7 @@
             <div x-show="loadingIfaces" class="text-sm text-gray-500">Detecting interfaces…</div>
             <select id="iface" x-show="!loadingIfaces" x-model="iface" class="input-field">
               <option value="" disabled>Select an interface</option>
-              <template x-for="i in ifaces" :key="i">
+              <template x-for="i in ifaces" :key="'lan-' + i">
                 <option :value="i" x-text="i"></option>
               </template>
             </select>
@@ -400,13 +400,13 @@
 
           <div class="grid gap-5 sm:grid-cols-2">
             <div>
-              <label for="lanIp" class="block text-sm font-medium text-gray-300 mb-1">LAN IP address</label>
+              <label for="lanIp" class="block text-sm font-medium text-gray-300 mb-1">LAN IP Address</label>
               <input id="lanIp" type="text" x-model="lanIp" placeholder="192.168.1.1"
                      class="input-field" autocomplete="off" spellcheck="false" />
               <p class="text-xs text-gray-500 mt-1">This address will be used to access the management UI.</p>
             </div>
             <div>
-              <label for="lanPrefix" class="block text-sm font-medium text-gray-300 mb-1">Subnet prefix</label>
+              <label for="lanPrefix" class="block text-sm font-medium text-gray-300 mb-1">Subnet Prefix</label>
               <input id="lanPrefix" type="number" x-model="lanPrefix" min="1" max="32"
                      class="input-field" autocomplete="off" />
               <p class="text-xs text-gray-500 mt-1">Typical LAN prefix is 24.</p>
@@ -415,17 +415,17 @@
 
           <div class="flex items-center gap-3">
             <input id="lanDhcp" type="checkbox" x-model="lanDhcpEnabled" class="h-4 w-4 text-shield-500 rounded" />
-            <label for="lanDhcp" class="text-sm text-gray-300">Enable DHCP on the LAN interface</label>
+            <label for="lanDhcp" class="text-sm text-gray-300">Enable DHCP on LAN Interface</label>
           </div>
 
           <div x-show="lanDhcpEnabled" class="grid gap-5 sm:grid-cols-2">
             <div>
-              <label for="dhcpStart" class="block text-sm font-medium text-gray-300 mb-1">DHCP pool start</label>
+              <label for="dhcpStart" class="block text-sm font-medium text-gray-300 mb-1">DHCP Pool Start</label>
               <input id="dhcpStart" type="text" x-model="dhcpStart" placeholder="192.168.1.100"
                      class="input-field" autocomplete="off" spellcheck="false" />
             </div>
             <div>
-              <label for="dhcpEnd" class="block text-sm font-medium text-gray-300 mb-1">DHCP pool end</label>
+              <label for="dhcpEnd" class="block text-sm font-medium text-gray-300 mb-1">DHCP Pool End</label>
               <input id="dhcpEnd" type="text" x-model="dhcpEnd" placeholder="192.168.1.199"
                      class="input-field" autocomplete="off" spellcheck="false" />
             </div>
@@ -439,11 +439,11 @@
       <!-- ── Step 5: Summary ────────────────────────────────── -->
       <div x-show="step === 5" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
         <h2 class="text-2xl font-bold text-white mb-2">Installation Summary</h2>
-        <p class="text-gray-400 text-sm mb-6">Review your configuration before finalizing.</p>
+        <p class="text-gray-400 text-sm mb-6">Review your configuration before proceeding.</p>
 
         <div class="space-y-3">
           <div class="summary-row">
-            <span class="summary-label">Target disk</span>
+            <span class="summary-label">Target Disk</span>
             <span class="summary-value" x-text="'/dev/' + selectedDisk"></span>
           </div>
           <div class="summary-row">
@@ -451,15 +451,15 @@
             <span class="summary-value" x-text="hostname || '(not set)'"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">Admin password</span>
+            <span class="summary-label">Administrator Password</span>
             <span class="summary-value">••••••••</span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">LAN interface</span>
+            <span class="summary-label">LAN Interface</span>
             <span class="summary-value" x-text="(iface || '').trim() || '(not set)'"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">LAN address</span>
+            <span class="summary-label">LAN Address</span>
             <span class="summary-value" x-text="(lanIp || '192.168.1.1') + '/' + (lanPrefix || '24')"></span>
           </div>
           <div class="summary-row">
@@ -467,27 +467,27 @@
             <span class="summary-value" x-text="lanDhcpEnabled ? 'enabled' : 'disabled'"></span>
           </div>
           <div class="summary-row" x-show="lanDhcpEnabled">
-            <span class="summary-label">DHCP pool</span>
+            <span class="summary-label">DHCP Pool</span>
             <span class="summary-value" x-text="dhcpStart + ' - ' + dhcpEnd"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">WAN interface</span>
+            <span class="summary-label">WAN Interface</span>
             <span class="summary-value" x-text="(wanIface || '').trim() || '(not set)'"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">WAN mode</span>
+            <span class="summary-label">WAN Mode</span>
             <span class="summary-value" x-text="wanType === 'pppoe' ? 'PPPoE' : 'DHCP'"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">BIOS boot partition</span>
+            <span class="summary-label">BIOS Boot Partition</span>
             <span class="summary-value" x-text="partitionPath(1) + '  (bios_grub, 1 MiB)'"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">EFI partition</span>
+            <span class="summary-label">EFI Partition</span>
             <span class="summary-value" x-text="partitionPath(2) + '  (FAT32, 512 MiB)'"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">Root partition</span>
+            <span class="summary-label">Root Partition</span>
             <span class="summary-value" x-text="partitionPath(3) + '  (ext4, remaining)'"></span>
           </div>
           <div class="summary-row">
@@ -560,8 +560,8 @@
           </svg>
         </div>
         <h2 class="text-3xl font-bold text-white mb-3">Installation Complete</h2>
-        <p class="text-gray-400 mb-2">DayShield has been successfully installed on <strong class="text-white" x-text="'/dev/' + selectedDisk"></strong>.</p>
-        <p class="text-gray-500 text-sm mb-8">Remove the installation media (ISO, CD/DVD, or USB) now, then click Reboot. A countdown will begin before reboot.</p>
+        <p class="text-gray-400 mb-2">DayShield Firewall has been successfully installed on <strong class="text-white" x-text="'/dev/' + selectedDisk"></strong>.</p>
+        <p class="text-gray-500 text-sm mb-8">Remove the installation media now, then click Reboot. A countdown will begin before reboot.</p>
         <button @click="reboot()"
                 :disabled="rebootPending"
                 class="btn-primary btn-lg gap-2">
@@ -579,7 +579,7 @@
 
   <!-- ── Footer ────────────────────────────────────────────── -->
   <footer class="bg-gray-900 border-t border-gray-800 px-6 py-4 flex items-center justify-between">
-    <div class="text-xs text-gray-600">DayShield Web Installer v1.0.0</div>
+    <div class="text-xs text-gray-600">DayShield Firewall - Web Installer</div>
 
     <div class="flex gap-3">
       <!-- Back button -->

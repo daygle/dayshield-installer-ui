@@ -181,7 +181,7 @@ show_splash() {
   fi
 
   printf "\n\n  ============================================================\n"
-  printf "  %s%sDayShield Installer%s\n" "${C_BOLD}" "${C_CYAN}" "${C_RESET}"
+  printf "  %bDayShield Installer%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   printf "  ============================================================\n"
   printf "  Backend listener (8443): %s\n" "${_backend_state}"
   printf "  Local browser detected : %s\n" "${_browser_state}"
@@ -234,7 +234,7 @@ while true; do
   fi
 
   printf "\n\n  ============================================================\n"
-  printf "  %s%sDayShield Installer - Console Access%s\n" "${C_BOLD}" "${C_CYAN}" "${C_RESET}"
+  printf "  %bDayShield Installer - Console Access%b\n" "${C_BOLD}${C_CYAN}" "${C_RESET}"
   printf "  ============================================================\n"
 
   if [ "${COMPACT_UI}" -eq 1 ]; then
