@@ -165,9 +165,10 @@ confirm() {
       answer=${answer:-n}
     fi
     answer=$(trim "$answer")
+    answer=$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')
     case "${answer}" in
-      y|Y|yes|YES|Yes) return 0 ;;
-      n|N|no|NO|No) return 1 ;;
+      y|yes) return 0 ;;
+      n|no) return 1 ;;
       *) printf 'Please answer y or n.\n' ;;
     esac
   done

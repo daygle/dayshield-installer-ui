@@ -112,6 +112,10 @@ is_listening_8443() {
   return 1
 }
 
+normalize_yes_no() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]'
+}
+
 detect_browser() {
   if command -v epiphany-browser >/dev/null 2>&1; then
     printf 'epiphany-browser\n'
@@ -298,8 +302,9 @@ while true; do
       printf '  Reboot system now? [y/N]: '
       CONFIRM=""
       read -r CONFIRM 2>/dev/null || CONFIRM=""
+      CONFIRM="$(normalize_yes_no "$CONFIRM")"
       case "$CONFIRM" in
-        [Yy]|[Yy][Ee][Ss])
+        y|yes)
           printf '  Rebooting...\n'
           if command -v systemctl >/dev/null 2>&1; then
             systemctl reboot >/dev/null 2>&1 || true
@@ -325,8 +330,9 @@ while true; do
       printf '  Power off system now? [y/N]: '
       CONFIRM=""
       read -r CONFIRM 2>/dev/null || CONFIRM=""
+      CONFIRM="$(normalize_yes_no "$CONFIRM")"
       case "$CONFIRM" in
-        [Yy]|[Yy][Ee][Ss])
+        y|yes)
           printf '  Powering off...\n'
           if command -v systemctl >/dev/null 2>&1; then
             systemctl poweroff >/dev/null 2>&1 || true
@@ -359,7 +365,7 @@ while true; do
       continue
       ;;
     *)
-      printf '  Invalid choice. Please enter W, C, S, B, P, R, or Q.\n'
+      printf '  Invalid choice. Please enter C, S, B, P, R, or Q.\n'
       sleep 1
       ;;
   esac
