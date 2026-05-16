@@ -67,6 +67,17 @@ EOF
   return 0
 }
 
+escape_for_double_quotes() {
+  # Escape backslash and double-quote for strings wrapped in double quotes.
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+json_escape_string() {
+  # Minimal JSON string escaping for safe embedding in generated JSON.
+  # Control characters are already rejected for PPPoE credentials.
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
 validate_interface_param() {
   # Usage: validate_interface_param VALUE PARAM_NAME LABEL
   if [ -z "$1" ]; then
@@ -387,10 +398,8 @@ mkdir -p "$NETWORKD_DIR"
 rm -f "${NETWORKD_DIR}/10-dayshield-eth.network"
 rm -f "${NETWORKD_DIR}/10-dayshield-en.network"
 if [ "$WAN_TYPE" = "pppoe" ]; then
-PPP_ESC_USER=${WAN_PPPOE_USER//\\/\\\\}
-PPP_ESC_USER=${PPP_ESC_USER//\"/\\\"}
-PPP_ESC_PASS=${WAN_PPPOE_PASS//\\/\\\\}
-PPP_ESC_PASS=${PPP_ESC_PASS//\"/\\\"}
+PPP_ESC_USER=$(escape_for_double_quotes "$WAN_PPPOE_USER")
+PPP_ESC_PASS=$(escape_for_double_quotes "$WAN_PPPOE_PASS")
 cat > "${NETWORKD_DIR}/10-wan.network" << EOF
 [Match]
 Name=${WAN_IFACE}
@@ -541,6 +550,7 @@ EOF
 # distro default path.
 mkdir -p "${TARGET}/etc/dayshield" "${TARGET}/etc/kea" "${TARGET}/var/lib/kea" "${TARGET}/var/log/kea"
 chmod 755 "${TARGET}/etc/kea"
+if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
 cat > "${TARGET}/etc/dayshield/kea-dhcp4.conf" << EOF
 {
   "Dhcp4": {
@@ -574,6 +584,10 @@ EOF
 chmod 644 "${TARGET}/etc/dayshield/kea-dhcp4.conf"
 cp "${TARGET}/etc/dayshield/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
 chmod 644 "${TARGET}/etc/kea/kea-dhcp4.conf"
+else
+  # Ensure DHCP remains disabled after install when LAN DHCP toggle is off.
+  rm -f "${TARGET}/etc/dayshield/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
+fi
 
 # Seed minimal WireGuard configuration
 cat > "${TARGET}/etc/wireguard/wg0.conf" << EOF
@@ -586,6 +600,17 @@ CORE_CFG_DIR="${TARGET}/etc/dayshield/config"
 mkdir -p "$CORE_CFG_DIR"
 # Generate UUIDs for seeded default firewall rules.
 _lan_rule_uuid="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || printf 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')"
+WAN_DHCP4_JSON="false"
+PPPOE_USER_JSON="null"
+PPPOE_PASS_JSON="null"
+if [ "$WAN_TYPE" = "dhcp" ]; then
+  WAN_DHCP4_JSON="true"
+elif [ "$WAN_TYPE" = "pppoe" ]; then
+  _pppoe_user_json_esc=$(json_escape_string "$WAN_PPPOE_USER")
+  _pppoe_pass_json_esc=$(json_escape_string "$WAN_PPPOE_PASS")
+  PPPOE_USER_JSON="\"${_pppoe_user_json_esc}\""
+  PPPOE_PASS_JSON="\"${_pppoe_pass_json_esc}\""
+fi
 cat > "${CORE_CFG_DIR}/config.json" << EOF
 {
   "hostname": "${HOSTNAME}",
@@ -597,12 +622,12 @@ cat > "${CORE_CFG_DIR}/config.json" << EOF
       "addresses": [],
       "mtu": 1500,
       "enabled": true,
-      "dhcp4": false,
+      "dhcp4": ${WAN_DHCP4_JSON},
       "dhcp6": false,
       "vlan": null,
       "wan_mode": "${WAN_TYPE}",
-      "pppoe_username": "$([ "$WAN_TYPE" = "pppoe" ] && printf '%s' "$WAN_PPPOE_USER")",
-      "pppoe_password": "$([ "$WAN_TYPE" = "pppoe" ] && printf '%s' "$WAN_PPPOE_PASS")",
+      "pppoe_username": ${PPPOE_USER_JSON},
+      "pppoe_password": ${PPPOE_PASS_JSON},
       "gateway": null
     },
     {
@@ -716,12 +741,21 @@ printf 'nameserver 127.0.0.1\n' > "${TARGET}/etc/resolv.conf"
 chmod 644 "${TARGET}/etc/resolv.conf"
 
 # Also enable required network services.
-for svc in systemd-networkd kea-dhcp4-server nftables unbound; do
+for svc in systemd-networkd nftables unbound; do
   if resolved_path=$(resolve_unit_path "$svc"); then
     ln -sf "${resolved_path}" \
        "${SYSTEMD_MULTI_USER}/${svc}.service" 2>/dev/null || true
   fi
 done
+
+if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
+  if resolved_path=$(resolve_unit_path "kea-dhcp4-server"); then
+    ln -sf "${resolved_path}" \
+       "${SYSTEMD_MULTI_USER}/kea-dhcp4-server.service" 2>/dev/null || true
+  fi
+else
+  rm -f "${SYSTEMD_MULTI_USER}/kea-dhcp4-server.service" 2>/dev/null || true
+fi
 
 # Ensure installed systems present a standard tty1 login prompt.
 # The ISO injects installer console units for live boot; disable them on target.
