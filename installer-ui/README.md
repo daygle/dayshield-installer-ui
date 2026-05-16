@@ -34,6 +34,7 @@ installer-ui/
 |-- tailwind.min.js          # Tailwind runtime bundle (committed for offline use)
 |-- httpd.conf               # busybox httpd CGI configuration
 |-- api/
+|   |-- detect-access.sh     # Detect reachable installer URLs/IPs
 |   |-- detect-disks.sh      # List block disks -> JSON
 |   |-- detect-ifaces.sh     # List network interfaces -> JSON
 |   |-- partition.sh         # GPT + EFI + root partition creation
@@ -92,7 +93,11 @@ From the dayshield-iso repository:
 ```bash
 make iso \
   ROOTFS=../dayshield-rootfs/rootfs.tar.zst \
+  ROOTFS_SHA256=<sha256-of-rootfs.tar.zst> \
   INSTALLER_UI=../dayshield-installer-ui/installer-ui
 ```
+
+`ROOTFS_SHA256` may be omitted only when a sidecar checksum file exists at
+`<rootfs-path>.sha256`.
 
 The ISO pipeline validates installer assets and fails fast if any required file is missing.

@@ -14,8 +14,11 @@ Web installer interface for **DayShield Firewall OS**, used by the live ISO.
 Build the installer-enabled ISO from `dayshield-iso`:
 
 ```sh
+# Either pass ROOTFS_SHA256 explicitly, or place a sibling
+# ../dayshield-rootfs/rootfs.tar.zst.sha256 sidecar file.
 make iso \
   ROOTFS=../dayshield-rootfs/rootfs.tar.zst \
+  ROOTFS_SHA256=<sha256-of-rootfs.tar.zst> \
   INSTALLER_UI=../dayshield-installer-ui/installer-ui
 ```
 
