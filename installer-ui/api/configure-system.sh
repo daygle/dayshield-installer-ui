@@ -427,6 +427,10 @@ Name=${WAN_IFACE}
 DHCP=ipv4
 IPv6AcceptRA=no
 LinkLocalAddressing=no
+
+[DHCPv4]
+UseHostname=false
+SendHostname=false
 EOF
 fi
 cat > "${NETWORKD_DIR}/20-lan.network" << EOF
@@ -533,11 +537,43 @@ net.ipv4.conf.${IFACE}.log_martians = 0
 net.ipv4.conf.${WAN_IFACE}.log_martians = 0
 EOF
 
-# Seed minimal Kea configuration
-mkdir -p "${TARGET}/etc/kea"
+# Seed canonical Kea configuration used by DayShield and a compatibility
+# include at Kea's distro default path.
+mkdir -p "${TARGET}/etc/dayshield" "${TARGET}/etc/kea" "${TARGET}/var/lib/kea" "${TARGET}/var/log/kea"
 chmod 755 "${TARGET}/etc/kea"
+cat > "${TARGET}/etc/dayshield/kea-dhcp4.conf" << EOF
+{
+  "Dhcp4": {
+    "interfaces-config": {
+      "interfaces": ["${IFACE}"],
+      "dhcp-socket-type": "raw"
+    },
+    "lease-database": {
+      "type": "memfile",
+      "persist": true,
+      "name": "/var/lib/kea/kea-leases4.csv"
+    },
+    "subnet4": [
+      {
+        "id": 1,
+        "subnet": "${SUBNET_CIDR}",
+        "pools": [ { "pool": "${DHCP_START} - ${DHCP_END}" } ],
+        "valid-lifetime": 43200,
+        "option-data": [
+          { "name": "routers",             "data": "${LAN_IP}" },
+          { "name": "domain-name-servers", "data": "${LAN_IP}" }
+        ]
+      }
+    ],
+    "loggers": [
+      { "name": "kea-dhcp4", "output_options": [ { "output": "/var/log/kea/kea-dhcp4.log" } ], "severity": "INFO" }
+    ]
+  }
+}
+EOF
+chmod 644 "${TARGET}/etc/dayshield/kea-dhcp4.conf"
 cat > "${TARGET}/etc/kea/kea-dhcp4.conf" << EOF
-# Minimal Kea configuration - defer to dayshield-core
+# Compatibility include - canonical file is managed under /etc/dayshield
 include: "/etc/dayshield/kea-dhcp4.conf"
 EOF
 chmod 644 "${TARGET}/etc/kea/kea-dhcp4.conf"
@@ -674,6 +710,9 @@ fi
 # Ensure systemd-resolved remains disabled in favour of unbound.
 mkdir -p "${TARGET}/etc/systemd/system"
 ln -sf /dev/null "${TARGET}/etc/systemd/system/systemd-resolved.service" 2>/dev/null || true
+# unbound-resolvconf requires /sbin/resolvconf; mask it because DayShield does
+# not install resolvconf and uses static resolv.conf pointing at Unbound.
+ln -sf /dev/null "${TARGET}/etc/systemd/system/unbound-resolvconf.service" 2>/dev/null || true
 
 # Point resolv.conf at the local Unbound resolver.
 printf 'nameserver 127.0.0.1\n' > "${TARGET}/etc/resolv.conf"
