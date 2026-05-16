@@ -469,6 +469,7 @@ server:
   harden-dnssec-stripped: yes
   hide-identity: yes
   hide-version: yes
+  module-config: "validator iterator"
 
   cache-min-ttl: 300
   cache-max-ttl: 86400
