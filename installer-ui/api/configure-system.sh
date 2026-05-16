@@ -537,8 +537,8 @@ net.ipv4.conf.${IFACE}.log_martians = 0
 net.ipv4.conf.${WAN_IFACE}.log_martians = 0
 EOF
 
-# Seed canonical Kea configuration used by DayShield and a compatibility
-# include at Kea's distro default path.
+# Seed canonical Kea configuration used by DayShield and mirror it at Kea's
+# distro default path.
 mkdir -p "${TARGET}/etc/dayshield" "${TARGET}/etc/kea" "${TARGET}/var/lib/kea" "${TARGET}/var/log/kea"
 chmod 755 "${TARGET}/etc/kea"
 cat > "${TARGET}/etc/dayshield/kea-dhcp4.conf" << EOF
@@ -572,10 +572,7 @@ cat > "${TARGET}/etc/dayshield/kea-dhcp4.conf" << EOF
 }
 EOF
 chmod 644 "${TARGET}/etc/dayshield/kea-dhcp4.conf"
-cat > "${TARGET}/etc/kea/kea-dhcp4.conf" << EOF
-# Compatibility include - canonical file is managed under /etc/dayshield
-include: "/etc/dayshield/kea-dhcp4.conf"
-EOF
+cp "${TARGET}/etc/dayshield/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
 chmod 644 "${TARGET}/etc/kea/kea-dhcp4.conf"
 
 # Seed minimal WireGuard configuration
