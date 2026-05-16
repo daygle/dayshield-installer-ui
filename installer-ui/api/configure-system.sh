@@ -167,6 +167,11 @@ fi
 if [ "$WAN_TYPE" = "pppoe" ] && { [ -z "$WAN_PPPOE_USER" ] || [ -z "$WAN_PPPOE_PASS" ]; }; then
   printf '{"error":"PPPoE selected but username/password missing"}\n'; exit 1
 fi
+if [ "$WAN_TYPE" = "pppoe" ]; then
+  if printf '%s' "$WAN_PPPOE_USER" | grep -q '[[:cntrl:]]' || printf '%s' "$WAN_PPPOE_PASS" | grep -q '[[:cntrl:]]'; then
+    printf '{"error":"Invalid PPPoE credentials: control characters are not allowed"}\n'; exit 1
+  fi
+fi
 
 if ! validate_ipv4 "$LAN_IP"; then
   printf '{"error":"Invalid lan_ip"}\n'; exit 1
@@ -382,6 +387,10 @@ mkdir -p "$NETWORKD_DIR"
 rm -f "${NETWORKD_DIR}/10-dayshield-eth.network"
 rm -f "${NETWORKD_DIR}/10-dayshield-en.network"
 if [ "$WAN_TYPE" = "pppoe" ]; then
+PPP_ESC_USER=${WAN_PPPOE_USER//\\/\\\\}
+PPP_ESC_USER=${PPP_ESC_USER//\"/\\\"}
+PPP_ESC_PASS=${WAN_PPPOE_PASS//\\/\\\\}
+PPP_ESC_PASS=${PPP_ESC_PASS//\"/\\\"}
 cat > "${NETWORKD_DIR}/10-wan.network" << EOF
 [Match]
 Name=${WAN_IFACE}
@@ -394,7 +403,7 @@ EOF
 mkdir -p "${TARGET}/etc/ppp/peers" "${TARGET}/etc/ppp"
 cat > "${TARGET}/etc/ppp/peers/wan" << EOF
 plugin rp-pppoe.so ${WAN_IFACE}
-user "${WAN_PPPOE_USER}"
+user "${PPP_ESC_USER}"
 noauth
 defaultroute
 replacedefaultroute
@@ -405,7 +414,7 @@ holdoff 5
 noipv6
 EOF
 chmod 600 "${TARGET}/etc/ppp/peers/wan"
-SECRETS_LINE="\"${WAN_PPPOE_USER}\" * \"${WAN_PPPOE_PASS}\" *"
+SECRETS_LINE="\"${PPP_ESC_USER}\" * \"${PPP_ESC_PASS}\" *"
 printf '%s\n' "${SECRETS_LINE}" > "${TARGET}/etc/ppp/chap-secrets"
 printf '%s\n' "${SECRETS_LINE}" > "${TARGET}/etc/ppp/pap-secrets"
 chmod 600 "${TARGET}/etc/ppp/chap-secrets" "${TARGET}/etc/ppp/pap-secrets"
