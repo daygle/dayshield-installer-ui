@@ -524,10 +524,13 @@ net.ipv4.conf.${WAN_IFACE}.log_martians = 0
 EOF
 
 # Seed minimal Kea configuration
+mkdir -p "${TARGET}/etc/kea"
+chmod 755 "${TARGET}/etc/kea"
 cat > "${TARGET}/etc/kea/kea-dhcp4.conf" << EOF
 # Minimal Kea configuration - defer to dayshield-core
 include: "/etc/dayshield/kea-dhcp4.conf"
 EOF
+chmod 644 "${TARGET}/etc/kea/kea-dhcp4.conf"
 
 # Seed minimal WireGuard configuration
 cat > "${TARGET}/etc/wireguard/wg0.conf" << EOF
