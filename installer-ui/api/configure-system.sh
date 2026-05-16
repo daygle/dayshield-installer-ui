@@ -451,6 +451,7 @@ server:
   # shortly after unbound service activation.
   interface: 0.0.0.0
   port: 53
+  pidfile: "/run/unbound/unbound.pid"
 
   do-ip4: yes
   do-ip6: no
@@ -522,45 +523,16 @@ net.ipv4.conf.${IFACE}.log_martians = 0
 net.ipv4.conf.${WAN_IFACE}.log_martians = 0
 EOF
 
-# Seed Kea DHCPv4 config for first boot.
-mkdir -p "${TARGET}/etc/kea" "${TARGET}/var/lib/kea" "${TARGET}/var/log/kea"
+# Seed minimal Kea configuration
 cat > "${TARGET}/etc/kea/kea-dhcp4.conf" << EOF
-{
-  "Dhcp4": {
-    "interfaces-config": {
-      "interfaces": ["${IFACE}"],
-      "dhcp-socket-type": "raw"
-    },
-    "lease-database": {
-      "type": "memfile",
-      "persist": true,
-      "name": "/var/lib/kea/kea-leases4.csv"
-    },
-    "subnet4": [
-      {
-        "id": 1,
-        "subnet": "${SUBNET_CIDR}",
-        "pools": [
-          { "pool": "${DHCP_START}-${DHCP_END}" }
-        ],
-        "valid-lifetime": 43200,
-        "option-data": [
-          { "name": "routers",             "data": "${LAN_IP}" },
-          { "name": "domain-name-servers", "data": "${LAN_IP}" }
-        ]
-      }
-    ],
-    "loggers": [
-      {
-        "name": "kea-dhcp4",
-        "output_options": [
-          { "output": "/var/log/kea/kea-dhcp4.log" }
-        ],
-        "severity": "INFO"
-      }
-    ]
-  }
-}
+# Minimal Kea configuration - defer to dayshield-core
+include: "/etc/dayshield/kea-dhcp4.conf"
+EOF
+
+# Seed minimal WireGuard configuration
+cat > "${TARGET}/etc/wireguard/wg0.conf" << EOF
+# Minimal WireGuard configuration - defer to dayshield-core
+include: "/etc/dayshield/wg0.conf"
 EOF
 
 # Seed DayShield core config so DHCP UI/API reflects installer defaults.
