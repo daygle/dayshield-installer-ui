@@ -282,7 +282,7 @@ set timeout=5
 
 menuentry "DayShield Firewall OS" {
   search --no-floppy --label --set=root dayshield-root
-  linux  /boot/${KERNEL_ENTRY} root=LABEL=dayshield-root rw quiet ipv6.disable=1
+  linux  /boot/${KERNEL_ENTRY} root=LABEL=dayshield-root rw quiet
   initrd /boot/${INITRD_ENTRY}
 }
 GRUBCFG

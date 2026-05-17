@@ -688,7 +688,17 @@ cat > "${CORE_CFG_DIR}/config.json" << EOF
   "dns_domain_overrides": [],
   "crowdsec": null,
   "notify": null,
-  "system_settings": null,
+  "system_settings": {
+    "hostname": "${HOSTNAME}",
+    "timezone": "UTC",
+    "ntpServers": ["0.pool.ntp.org", "1.pool.ntp.org"],
+    "dnsServers": [],
+    "sshEnabled": true,
+    "sshPort": 22,
+    "webPort": 443,
+    "ipv6Enabled": false,
+    "managementTlsAcmeDomain": null
+  },
   "ntp": null,
   "gateways": []
 }
