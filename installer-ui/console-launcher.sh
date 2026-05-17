@@ -202,7 +202,8 @@ if [ -n "${BROWSER}" ] && should_auto_launch; then
 fi
 
 while true; do
-  LAN_ADDRS="$({ ip -o -4 addr show scope global 2>/dev/null || true; } | awk '{print $2 " " $4}')"
+  LAN4_ADDRS="$({ ip -o -4 addr show scope global 2>/dev/null || true; } | awk '{print $2 " " $4}')"
+  LAN6_ADDRS="$({ ip -o -6 addr show scope global 2>/dev/null || true; } | awk '{print $2 " " $4}')"
   COMPACT_UI=0
   if is_compact_mode; then
     COMPACT_UI=1
@@ -222,8 +223,11 @@ while true; do
     printf "  Web Installer runs on port 8443 and needs a JS-capable browser.\n\n"
   fi
 
-  if [ -n "$LAN_ADDRS" ]; then
-    LAN_COUNT="$(printf "%s\n" "$LAN_ADDRS" | awk 'NF { count++ } END { print count + 0 }')"
+  LAN4_COUNT="$(printf "%s\n" "$LAN4_ADDRS" | awk 'NF { count++ } END { print count + 0 }')"
+  LAN6_COUNT="$(printf "%s\n" "$LAN6_ADDRS" | awk 'NF { count++ } END { print count + 0 }')"
+  LAN_COUNT=$((LAN4_COUNT + LAN6_COUNT))
+
+  if [ "${LAN_COUNT}" -gt 0 ]; then
     if [ "${LAN_COUNT}" -eq 1 ]; then
       WEB_URL_LABEL="Web Installer URL"
       URL_LABEL="URL"
@@ -233,20 +237,36 @@ while true; do
     fi
 
     if [ "${COMPACT_UI}" -eq 0 ]; then
-      printf "%s\n" "$LAN_ADDRS" | while read -r iface cidr; do
-        ip=${cidr%%/*}
-        printf "    %s  %s\n" "$iface" "$ip"
-      done
+      if [ -n "$LAN4_ADDRS" ]; then
+        printf "%s\n" "$LAN4_ADDRS" | while read -r iface cidr; do
+          ip=${cidr%%/*}
+          printf "    %s  %s\n" "$iface" "$ip"
+        done
+      fi
+      if [ -n "$LAN6_ADDRS" ]; then
+        printf "%s\n" "$LAN6_ADDRS" | while read -r iface cidr; do
+          ip=${cidr%%/*}
+          printf "    %s  %s\n" "$iface" "$ip"
+        done
+      fi
       printf "\n"
       printf "  %s:\n" "${WEB_URL_LABEL}"
     else
       printf "  %s:\n" "${URL_LABEL}"
     fi
 
-    printf "%s\n" "$LAN_ADDRS" | while read -r iface cidr; do
-      ip=${cidr%%/*}
-      printf "    http://%s:8443/\n" "$ip"
-    done
+    if [ -n "$LAN4_ADDRS" ]; then
+      printf "%s\n" "$LAN4_ADDRS" | while read -r iface cidr; do
+        ip=${cidr%%/*}
+        printf "    http://%s:8443/\n" "$ip"
+      done
+    fi
+    if [ -n "$LAN6_ADDRS" ]; then
+      printf "%s\n" "$LAN6_ADDRS" | while read -r iface cidr; do
+        ip=${cidr%%/*}
+        printf "    http://[%s]:8443/\n" "$ip"
+      done
+    fi
     printf "\n"
   else
     printf "  URL:\n"

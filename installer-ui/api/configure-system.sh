@@ -434,8 +434,8 @@ Name=${WAN_IFACE}
 
 [Network]
 DHCP=ipv4
-IPv6AcceptRA=no
-LinkLocalAddressing=no
+IPv6AcceptRA=yes
+LinkLocalAddressing=ipv6
 
 [DHCPv4]
 UseHostname=false
