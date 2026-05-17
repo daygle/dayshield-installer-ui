@@ -9,6 +9,7 @@ set -eu
 # Wizard state (must be initialized because script runs with `set -u`).
 selected_disk=''
 selected_disk_has_data=''
+install_mode='upgrade'
 
 print_header() {
   printf '\n%s\n' "$1"
@@ -288,9 +289,35 @@ detect_disks() {
   done
 }
 
+choose_install_mode() {
+  print_header 'Install Mode'
+  printf '  1) Upgrade from ISO   - stage this ISO rootfs into the inactive A/B slot and preserve configuration\n'
+  printf '  2) Reinstall from ISO - erase the selected disk and create a fresh DayShield appliance\n'
+  while :; do
+    answer=$(read_prompt 'Select mode [1-2] (Q to quit): ' yes)
+    case "$answer" in
+      ''|1|upgrade|Upgrade)
+        install_mode=upgrade
+        printf 'Selected: Upgrade from ISO\n'
+        return 0
+        ;;
+      2|reinstall|Reinstall|install|Install)
+        install_mode=reinstall
+        printf 'Selected: Reinstall from ISO\n'
+        return 0
+        ;;
+      *) printf 'Please enter 1 or 2.\n' ;;
+    esac
+  done
+}
+
 choose_disk() {
   local disk
-  print_header 'Disk Selection'
+  if [ "$install_mode" = upgrade ]; then
+    print_header 'Existing Appliance Disk'
+  else
+    print_header 'Disk Selection'
+  fi
   while :; do
     disk_list=$(detect_disks)
     if [ -z "$disk_list" ]; then
@@ -302,7 +329,11 @@ choose_disk() {
     if [ -n "${selected_disk:-}" ]; then
       printf 'Current disk: /dev/%s\n' "$selected_disk"
     fi
-    answer=$(read_prompt 'Select installation disk number (or Q to quit): ' yes)
+    if [ "$install_mode" = upgrade ]; then
+      answer=$(read_prompt 'Select existing appliance disk number (or Q to quit): ' yes)
+    else
+      answer=$(read_prompt 'Select installation disk number (or Q to quit): ' yes)
+    fi
     answer=$(printf '%s' "$answer" | tr -d '[:space:]')
     if [ -z "$answer" ]; then
       printf 'Please choose a disk number.\n'
@@ -314,7 +345,9 @@ choose_disk() {
       selected_disk=$disk
       selected_disk_has_data=$has_data
       printf 'Selected /dev/%s\n' "$selected_disk"
-      if [ "$selected_disk_has_data" = true ]; then
+      if [ "$install_mode" = upgrade ]; then
+        printf 'The inactive DayShield A/B rootfs slot on this disk will be replaced.\n'
+      elif [ "$selected_disk_has_data" = true ]; then
         printf 'Warning: the selected disk contains existing partitions or data and will be erased.\n'
       else
         printf 'The selected disk appears blank and will be prepared for installation.\n'
@@ -441,6 +474,12 @@ run_install_pipeline() {
   return 0
 }
 
+run_upgrade_pipeline() {
+  print_header 'ISO Rootfs Upgrade'
+  if ! run_step 'Staging ISO rootfs into inactive slot' upgrade-rootfs disk "$selected_disk"; then return 1; fi
+  return 0
+}
+
 run_config_pipeline() {
   print_header 'Configuration'
   if ! run_step_post 'Applying system settings' configure-system \
@@ -473,7 +512,31 @@ main() {
     exit 0
   fi
 
+  choose_install_mode
   choose_disk
+
+  if [ "$install_mode" = upgrade ]; then
+    print_header 'Summary'
+    printf 'Mode: Upgrade from ISO\n'
+    printf 'Disk: /dev/%s\n' "$selected_disk"
+    printf '\nThe inactive A/B rootfs slot will be replaced with the ISO rootfs.\n'
+    printf 'Existing configuration will be copied from the active slot.\n'
+    if ! confirm 'Stage ISO upgrade now?' no; then
+      printf 'Upgrade aborted.\n'
+      exit 0
+    fi
+    if ! run_upgrade_pipeline; then
+      printf 'Upgrade pipeline failed. Review errors and try again.\n'
+      exit 1
+    fi
+    print_header 'Complete'
+    printf 'ISO rootfs upgrade staged on /dev/%s.\n' "$selected_disk"
+    printf 'Remove the installation media before rebooting.\n'
+    if confirm 'Reboot now?' yes; then
+      countdown_reboot 10
+    fi
+    exit 0
+  fi
 
   print_header 'Partitioning'
   printf 'The selected disk will be repartitioned and all existing data will be erased.\n'

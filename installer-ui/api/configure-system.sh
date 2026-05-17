@@ -800,10 +800,18 @@ rm -f "${TARGET}/etc/systemd/system/getty@tty1.service" 2>/dev/null || true
 # ── Write /etc/fstab ──────────────────────────────────────────────
 DISK_NODE="$DISK"
 EFI_PART="/dev/${DISK_NODE}2"
-ROOT_PART="/dev/${DISK_NODE}3"
-case "$DISK_NODE" in nvme*|mmcblk*) EFI_PART="/dev/${DISK_NODE}p2"; ROOT_PART="/dev/${DISK_NODE}p3" ;; esac
+BOOT_PART="/dev/${DISK_NODE}3"
+ROOT_PART="/dev/${DISK_NODE}4"
+case "$DISK_NODE" in
+  nvme*|mmcblk*)
+    EFI_PART="/dev/${DISK_NODE}p2"
+    BOOT_PART="/dev/${DISK_NODE}p3"
+    ROOT_PART="/dev/${DISK_NODE}p4"
+    ;;
+esac
 
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT_PART" 2>/dev/null || true)
+BOOT_UUID=$(blkid -s UUID -o value "$BOOT_PART" 2>/dev/null || true)
 EFI_UUID=$(blkid -s UUID -o value "$EFI_PART" 2>/dev/null || true)
 
 {
@@ -813,6 +821,11 @@ EFI_UUID=$(blkid -s UUID -o value "$EFI_PART" 2>/dev/null || true)
   else
     printf '%s  /          ext4  defaults,noatime  0 1\n' "$ROOT_PART"
   fi
+  if [ -n "$BOOT_UUID" ]; then
+    printf 'UUID=%s  /boot      ext4  defaults,noatime  0 2\n' "$BOOT_UUID"
+  else
+    printf '%s  /boot      ext4  defaults,noatime  0 2\n' "$BOOT_PART"
+  fi
   if [ -n "$EFI_UUID" ]; then
     printf 'UUID=%s  /boot/efi  vfat  umask=0077        0 2\n' "$EFI_UUID"
   else
@@ -820,6 +833,9 @@ EFI_UUID=$(blkid -s UUID -o value "$EFI_PART" 2>/dev/null || true)
   fi
   printf 'tmpfs       /tmp       tmpfs defaults,nosuid,nodev  0 0\n'
 } > "${TARGET}/etc/fstab"
+
+mkdir -p "${TARGET}/etc/dayshield"
+printf 'a\n' > "${TARGET}/etc/dayshield/rootfs-slot"
 
 if [ -n "${DAYSHIELD_SVC_WARNING}" ]; then
   WARN_JSON=$(printf '%s' "${DAYSHIELD_SVC_WARNING}" | sed 's/\\/\\\\/g; s/"/\\"/g')

@@ -1,13 +1,16 @@
 ﻿# DayShield Firewall Installer UI
 
-Web installer interface for **DayShield Firewall**, used by the live ISO.
+Web and console installer interface for **DayShield Firewall**, used by the live ISO.
 
 ## What this repo contains
 
-- `installer-ui/`: web UI assets, CGI API scripts, and systemd units.
+- `installer-ui/`: web UI assets, console wizard, CGI API scripts, and systemd units.
 - Root README: integration quick reference for ISO builds.
 
 > Note: the web installer is intended as a one-time local setup interface on a trusted network or direct console. It is not protected by authentication, so it should not be exposed to untrusted networks.
+
+The live installer supports both **Upgrade from ISO** for existing A/B
+appliances and **Reinstall from ISO** for fresh destructive installs.
 
 ## Quick integration
 

@@ -48,7 +48,24 @@ while IFS= read -r line; do
     has_data=true
   fi
 
-  entry="{\"name\":\"${name_safe}\",\"size\":\"${size_safe}\",\"type\":\"${type_safe}\",\"has_data\":${has_data}}"
+  has_ab_install=false
+  if command -v blkid >/dev/null 2>&1; then
+    root_a=$(blkid -L DAYSHIELD_ROOT_A 2>/dev/null || true)
+    root_b=$(blkid -L DAYSHIELD_ROOT_B 2>/dev/null || true)
+    boot_part=$(blkid -L DAYSHIELD_BOOT 2>/dev/null || true)
+    if [ -n "$root_a" ] && [ -n "$root_b" ] && [ -n "$boot_part" ]; then
+      ab_matches=0
+      for dev in "$root_a" "$root_b" "$boot_part"; do
+        pkname=$(lsblk -ndo PKNAME "$dev" 2>/dev/null || true)
+        if [ "$pkname" = "$name" ]; then
+          ab_matches=$((ab_matches + 1))
+        fi
+      done
+      [ "$ab_matches" -eq 3 ] && has_ab_install=true
+    fi
+  fi
+
+  entry="{\"name\":\"${name_safe}\",\"size\":\"${size_safe}\",\"type\":\"${type_safe}\",\"has_data\":${has_data},\"has_ab_install\":${has_ab_install}}"
 
   if [ "$FIRST" -eq 1 ]; then
     DISKS_JSON="${entry}"

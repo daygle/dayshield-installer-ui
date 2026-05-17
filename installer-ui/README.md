@@ -30,6 +30,7 @@ installer-ui/
 |-- index.html               # Main installer UI (Alpine + Tailwind runtime)
 |-- styles.css               # Plain browser CSS only (no build step)
 |-- app.js                   # Alpine application state and logic
+|-- dayshield-console        # Console wizard for upgrade/reinstall mode
 |-- alpine.min.js            # Alpine bundle (committed for offline use)
 |-- tailwind.min.js          # Tailwind runtime bundle (committed for offline use)
 |-- httpd.conf               # busybox httpd CGI configuration
@@ -37,9 +38,10 @@ installer-ui/
 |   |-- detect-access.sh     # Detect reachable installer URLs/IPs
 |   |-- detect-disks.sh      # List block disks -> JSON
 |   |-- detect-ifaces.sh     # List network interfaces -> JSON
-|   |-- partition.sh         # GPT + EFI + root partition creation
-|   |-- format.sh            # FAT32 EFI + ext4 root formatting
+|   |-- partition.sh         # GPT + EFI + shared boot + A/B root partition creation
+|   |-- format.sh            # FAT32 EFI + ext4 shared boot + A/B root formatting
 |   |-- install-rootfs.sh    # Mount + extract rootfs.tar.zst from ISO
+|   |-- upgrade-rootfs.sh    # Stage rootfs.tar.zst into the inactive A/B slot
 |   |-- install-bootloader.sh# GRUB BIOS + UEFI install
 |   |-- configure-system.sh  # Hostname, password, network, fstab, services
 |   |-- finalize.sh          # Unmount, sync, clean temp files
@@ -101,3 +103,10 @@ make iso \
 `<rootfs-path>.sha256`.
 
 The ISO pipeline validates installer assets and fails fast if any required file is missing.
+
+## Installer Modes
+
+Both the web UI and `dayshield-console` expose the same two ISO actions:
+
+- **Upgrade from ISO** requires an existing DayShield A/B disk. It formats only the inactive root slot, extracts the ISO rootfs there, copies persistent configuration/state from the active slot, updates GRUB for a one-shot trial boot, and leaves the active slot available for rollback.
+- **Reinstall from ISO** erases the selected disk and creates a fresh A/B layout: BIOS boot, EFI, shared boot, root slot A, and root slot B.

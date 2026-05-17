@@ -93,6 +93,14 @@ if mountpoint -q "$EFI_MP" 2>/dev/null; then
   }
 fi
 
+BOOT_MP="${TARGET}/boot"
+if mountpoint -q "$BOOT_MP" 2>/dev/null; then
+  umount "$BOOT_MP" 2>/dev/null || {
+    printf '{"error":"Failed to unmount boot partition"}\n'
+    exit 1
+  }
+fi
+
 if mountpoint -q "$TARGET" 2>/dev/null; then
   umount "$TARGET" 2>/dev/null || {
     printf '{"error":"Failed to unmount root partition"}\n'
