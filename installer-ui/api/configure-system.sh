@@ -385,8 +385,12 @@ EOF
 
 # Write nftables interface mapping used by /etc/nftables.conf.
 mkdir -p "${TARGET}/etc/dayshield/config"
+NFT_WAN_IF="${WAN_IFACE}"
+if [ "$WAN_TYPE" = "pppoe" ]; then
+  NFT_WAN_IF="ppp0"
+fi
 cat > "${TARGET}/etc/dayshield/config/nft-ifaces.conf" << EOF
-define WAN_IF = ${WAN_IFACE}
+define WAN_IF = ${NFT_WAN_IF}
 define LAN_IF = ${IFACE}
 EOF
 
@@ -413,6 +417,9 @@ mkdir -p "${TARGET}/etc/ppp/peers" "${TARGET}/etc/ppp"
 cat > "${TARGET}/etc/ppp/peers/wan" << EOF
 plugin rp-pppoe.so ${WAN_IFACE}
 user "${PPP_ESC_USER}"
+linkname wan
+pidfile /run/ppp-wan.pid
+noipdefault
 noauth
 defaultroute
 replacedefaultroute
@@ -420,6 +427,8 @@ hide-password
 persist
 maxfail 0
 holdoff 5
+mtu 1492
+mru 1492
 noipv6
 EOF
 chmod 600 "${TARGET}/etc/ppp/peers/wan"
@@ -601,11 +610,13 @@ mkdir -p "$CORE_CFG_DIR"
 # Generate UUIDs for seeded default firewall rules.
 _lan_rule_uuid="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || printf 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')"
 WAN_DHCP4_JSON="false"
+WAN_MTU_JSON="1500"
 PPPOE_USER_JSON="null"
 PPPOE_PASS_JSON="null"
 if [ "$WAN_TYPE" = "dhcp" ]; then
   WAN_DHCP4_JSON="true"
 elif [ "$WAN_TYPE" = "pppoe" ]; then
+  WAN_MTU_JSON="1492"
   _pppoe_user_json_esc=$(json_escape_string "$WAN_PPPOE_USER")
   _pppoe_pass_json_esc=$(json_escape_string "$WAN_PPPOE_PASS")
   PPPOE_USER_JSON="\"${_pppoe_user_json_esc}\""
@@ -620,7 +631,7 @@ cat > "${CORE_CFG_DIR}/config.json" << EOF
       "name": "${WAN_IFACE}",
       "description": "WAN",
       "addresses": [],
-      "mtu": 1500,
+      "mtu": ${WAN_MTU_JSON},
       "enabled": true,
       "dhcp4": ${WAN_DHCP4_JSON},
       "dhcp6": false,
