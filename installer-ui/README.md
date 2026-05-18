@@ -106,7 +106,12 @@ The ISO pipeline validates installer assets and fails fast if any required file 
 
 ## Installer Modes
 
-Both the web UI and `dayshield-console` expose the same two ISO actions:
+The web UI opens with **Fresh Install** selected by default. It creates a new
+A/B appliance layout on the selected disk. The same destructive install path is
+available as **Reinstall from ISO** when replacing an existing install.
+
+Both the web UI and `dayshield-console` expose the ISO upgrade and destructive
+install actions:
 
 - **Upgrade from ISO** requires an existing DayShield A/B disk. It formats only the inactive root slot, extracts the ISO rootfs there, copies persistent configuration/state from the active slot, updates GRUB for a one-shot trial boot, and leaves the active slot available for rollback.
 - **Reinstall from ISO** erases the selected disk and creates a fresh A/B layout: BIOS boot, EFI, shared boot, root slot A, and root slot B.

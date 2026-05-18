@@ -15,7 +15,7 @@ function installer() {
   return {
     /* ── State ─────────────────────────────────────────────── */
     step: 0,
-    installMode: 'upgrade',
+    installMode: 'fresh',
     upgradeResult: null,
 
     // Disk selection
@@ -115,6 +115,10 @@ function installer() {
       return this.installMode === 'upgrade';
     },
 
+    isFreshInstallMode() {
+      return this.installMode === 'fresh';
+    },
+
     isValidIpv4(value) {
       const text = (value || '').trim();
       if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(text)) return false;
@@ -181,7 +185,7 @@ function installer() {
     nextLabel() {
       switch (this.step) {
         case 0: return 'Start';
-        case 2: return this.isUpgradeMode() ? 'Stage Upgrade' : 'Partition & Install';
+        case 2: return this.isUpgradeMode() ? 'Stage Upgrade' : (this.isFreshInstallMode() ? 'Fresh Install' : 'Reinstall');
         case 5: return 'Install';
         default: return 'Next';
       }

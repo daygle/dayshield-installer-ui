@@ -138,7 +138,13 @@
           This installer will guide you through setting up DayShield Firewall on your hardware.
           All operations are performed locally - no internet connection is required.
         </p>
-        <div class="grid gap-3 sm:grid-cols-2 w-full max-w-xl mb-6">
+        <div class="grid gap-3 sm:grid-cols-3 w-full max-w-3xl mb-6">
+          <button @click="installMode = 'fresh'"
+                  class="text-left rounded-xl border-2 p-4 transition-all"
+                  :class="installMode === 'fresh' ? 'border-shield-500 bg-shield-900/40' : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
+            <p class="font-semibold text-white">Fresh Install</p>
+            <p class="text-sm text-gray-400 mt-1">Create a new DayShield A/B appliance layout on the selected disk.</p>
+          </button>
           <button @click="installMode = 'upgrade'"
                   class="text-left rounded-xl border-2 p-4 transition-all"
                   :class="installMode === 'upgrade' ? 'border-shield-500 bg-shield-900/40' : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
@@ -178,7 +184,7 @@
 
       <!-- ── Step 1: Disk Selection ──────────────────────────── -->
       <div x-show="step === 1" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
-        <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Select Existing Appliance Disk' : 'Select Installation Disk'"></h2>
+        <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Select Existing Appliance Disk' : (isFreshInstallMode() ? 'Select Fresh Install Disk' : 'Select Reinstall Disk')"></h2>
         <p class="text-gray-400 text-sm mb-6" x-text="isUpgradeMode() ? 'Choose the existing DayShield disk with DAYSHIELD_ROOT_A, DAYSHIELD_ROOT_B, and DAYSHIELD_BOOT labels. The inactive slot will be replaced; configuration is preserved.' : (selectedDiskInfo() ? (selectedDiskInfo().has_data ? 'Choose the disk where DayShield will be installed. Existing partitions or data on the selected disk will be erased.' : 'Choose the disk where DayShield will be installed. The selected disk appears to be blank.') : 'Choose the disk where DayShield will be installed.')"></p>
 
         <div x-show="loadingDisks" class="flex items-center gap-3 text-gray-400 py-8">
@@ -240,7 +246,7 @@
 
       <!-- ── Step 2: Partition Summary ──────────────────────── -->
       <div x-show="step === 2" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
-        <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Upgrade Summary' : 'Partitioning Summary'"></h2>
+        <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Upgrade Summary' : (isFreshInstallMode() ? 'Fresh Install Summary' : 'Reinstall Summary')"></h2>
         <p class="text-gray-400 text-sm mb-6"
            x-text="isUpgradeMode() ? 'The ISO rootfs will be staged to the inactive A/B slot on /dev/' + selectedDisk + '. Existing configuration and appliance state are copied from the active slot.' : 'The following partition layout will be created on /dev/' + selectedDisk + '.'"></p>
 
@@ -325,7 +331,7 @@
 
       <!-- ── Step 3: Installation Progress ──────────────────── -->
       <div x-show="step === 3" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
-        <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Staging ISO Upgrade' : 'Installing DayShield Firewall'"></h2>
+        <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Staging ISO Upgrade' : (isFreshInstallMode() ? 'Installing Fresh DayShield Firewall' : 'Reinstalling DayShield Firewall')"></h2>
         <p class="text-gray-400 text-sm mb-8" x-text="isUpgradeMode() ? 'Please wait while the ISO rootfs is written to the inactive slot. Do not power off your machine.' : 'Please wait while the system is installed. Do not power off your machine.'"></p>
 
         <div class="space-y-4 mb-8">
