@@ -1,0 +1,82 @@
+name: Release Installer UI
+
+# Publishes versioned installer-ui release artifacts on tag pushes.
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'installer-ui-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (for example v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release tag
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+          printf 'tag=%s\n' "${TAG}" >> "${GITHUB_OUTPUT}"
+          printf 'artifact=installer-ui-%s.tar.gz\n' "${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout repository at tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+
+      - name: Package installer-ui payload
+        run: |
+          set -euo pipefail
+          ARTIFACT="${{ steps.version.outputs.artifact }}"
+          tar -C . -czf "${ARTIFACT}" installer-ui
+          sha256sum "${ARTIFACT}" > "${ARTIFACT}.sha256"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          ARTIFACT="${{ steps.version.outputs.artifact }}"
+
+          NOTES=$(cat <<EOF
+          ## DayShield Installer UI ${TAG}
+
+          Versioned installer UI payload used by ISO builds.
+
+          ### Artifacts
+          - ${ARTIFACT}
+          - ${ARTIFACT}.sha256
+          EOF
+          )
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release edit "${TAG}" \
+              --title "installer-ui ${TAG}" \
+              --notes "${NOTES}"
+            gh release upload "${TAG}" \
+              "${ARTIFACT}" \
+              "${ARTIFACT}.sha256" \
+              --clobber
+          else
+            gh release create "${TAG}" \
+              --title "installer-ui ${TAG}" \
+              --notes "${NOTES}" \
+              "${ARTIFACT}" \
+              "${ARTIFACT}.sha256"
+          fi
