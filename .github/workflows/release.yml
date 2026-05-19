@@ -1,4 +1,4 @@
-name: Release Installer UI
+name: Build & Release
 
 # Publishes versioned installer-ui release artifacts on tag pushes.
 
