@@ -274,19 +274,21 @@ while true; do
     printf "\n"
   fi
 
-  printf "  Command-Line Options:\n"
-  printf "    [C] Command-line Installer\n"
-  printf "    [S] Shell\n"
-  printf "    [B] Reboot\n"
-  printf "    [P] Poweroff\n"
-  printf "    [R] Refresh\n"
-  printf "    [Q] Quit\n\n"
+  printf "  Actions\n"
+  printf "  ------------------------------------------------------------\n"
+  printf "  [1] Command-line Installer\n"
+  printf "  [2] Shell\n"
+  printf "  [3] Reboot\n"
+  printf "  [4] Poweroff\n"
+  printf "  [5] Refresh\n"
+  printf "  [0] Quit\n"
+  printf "\n"
 
-  printf "  Enter choice (C/S/B/P/R/Q): "
+  printf "  Select option: "
   KEY=""
   read -r KEY 2>/dev/null || KEY=""
   case "$KEY" in
-    [Cc])
+    1)
       printf "  Launching command-line installer wizard...\n\n"
 
       if [ -f /installer-ui/dayshield-console ]; then
@@ -308,7 +310,7 @@ while true; do
       printf '\033c'
       continue
       ;;
-    [Ss])
+    2)
       printf '  Opening shell... (type "exit" to return to menu)\n\n'
       if command -v bash >/dev/null 2>&1; then
         /bin/bash --login || true
@@ -318,7 +320,7 @@ while true; do
       printf '\033c'
       continue
       ;;
-    [Bb])
+    3)
       printf '  Reboot system now? [y/N]: '
       CONFIRM=""
       read -r CONFIRM 2>/dev/null || CONFIRM=""
@@ -346,7 +348,7 @@ while true; do
           ;;
       esac
       ;;
-    [Pp])
+    4)
       printf '  Power off system now? [y/N]: '
       CONFIRM=""
       read -r CONFIRM 2>/dev/null || CONFIRM=""
@@ -374,18 +376,20 @@ while true; do
           ;;
       esac
       ;;
-    [Rr])
+    5)
       printf '\033c'
       continue
       ;;
-    [Qq]) exit 0 ;;
-    "")
-      # Empty input (Enter pressed alone): redisplay menu.
+    "")      # Empty input (Enter pressed alone): redisplay menu.
       printf '\033c'
       continue
+      ;;
+    0)
+      printf '  Exiting.\n'
+      exit 0
       ;;
     *)
-      printf '  Invalid choice. Please enter C, S, B, P, R, or Q.\n'
+      printf '  Invalid choice.\n'
       sleep 1
       ;;
   esac
