@@ -369,10 +369,10 @@ function installer() {
             { id: 'upgrade', label: 'Staging ISO rootfs into inactive slot', status: 'pending' },
           ]
         : [
-            { id: 'partition',  label: 'Creating A/B partitions',     status: 'pending' },
+            { id: 'partition',  label: 'Creating Primary/Secondary partitions', status: 'pending' },
             { id: 'format',     label: 'Formatting partitions',       status: 'pending' },
             { id: 'rootfs',     label: 'Installing root filesystem',  status: 'pending' },
-            { id: 'bootloader', label: 'Installing A/B bootloader',   status: 'pending' },
+            { id: 'bootloader', label: 'Installing Primary/Secondary bootloader', status: 'pending' },
           ];
     },
 

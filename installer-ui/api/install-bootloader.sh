@@ -1,5 +1,5 @@
 #!/bin/sh
-# install-bootloader.sh - Install GRUB and DayShield A/B boot entries.
+# install-bootloader.sh - Install GRUB and DayShield Primary/Secondary boot entries.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -147,27 +147,27 @@ fi
 BOOT_DEV=$(blkid -L DAYSHIELD_BOOT 2>/dev/null || true)
 ROOT_A_DEV=$(blkid -L DAYSHIELD_ROOT_A 2>/dev/null || true)
 ROOT_B_DEV=$(blkid -L DAYSHIELD_ROOT_B 2>/dev/null || true)
-[ -n "$BOOT_DEV" ] && [ -n "$ROOT_A_DEV" ] && [ -n "$ROOT_B_DEV" ] || json_error "A/B rootfs labels were not found"
+[ -n "$BOOT_DEV" ] && [ -n "$ROOT_A_DEV" ] && [ -n "$ROOT_B_DEV" ] || json_error "Primary/Secondary rootfs labels were not found"
 
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || true)
 ROOT_A_UUID=$(blkid -s UUID -o value "$ROOT_A_DEV" 2>/dev/null || true)
 ROOT_B_UUID=$(blkid -s UUID -o value "$ROOT_B_DEV" 2>/dev/null || true)
-[ -n "$BOOT_UUID" ] && [ -n "$ROOT_A_UUID" ] && [ -n "$ROOT_B_UUID" ] || json_error "Failed to resolve A/B rootfs UUIDs"
+[ -n "$BOOT_UUID" ] && [ -n "$ROOT_A_UUID" ] && [ -n "$ROOT_B_UUID" ] || json_error "Failed to resolve Primary/Secondary rootfs UUIDs"
 
-install_slot_boot_files "a" "${TARGET}/boot" || json_error "Could not copy slot A kernel/initrd into shared boot"
+install_slot_boot_files "a" "${TARGET}/boot" || json_error "Could not copy primary slot kernel/initrd into shared boot"
 mkdir -p "${TARGET}/boot/dayshield/slot-b" "${TARGET}/etc/grub.d"
 
 cat > "${TARGET}/etc/grub.d/09_dayshield_ab" <<EOF
 #!/bin/sh
 set -e
 cat <<'GRUB_EOF'
-menuentry 'DayShield slot A' --id 'dayshield-a' {
+menuentry 'DayShield Primary System' --id 'dayshield-a' {
     search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
     linux /dayshield/slot-a/vmlinuz root=UUID=${ROOT_A_UUID} ro quiet splash
     initrd /dayshield/slot-a/initrd.img
 }
 
-menuentry 'DayShield slot B' --id 'dayshield-b' {
+menuentry 'DayShield Secondary System' --id 'dayshield-b' {
     search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
     linux /dayshield/slot-b/vmlinuz root=UUID=${ROOT_B_UUID} ro quiet splash
     initrd /dayshield/slot-b/initrd.img
@@ -199,13 +199,13 @@ if [ ! -s "${TARGET}/boot/grub/grub.cfg" ]; then
 set default=saved
 set timeout=5
 
-menuentry 'DayShield slot A' --id 'dayshield-a' {
+menuentry 'DayShield Primary System' --id 'dayshield-a' {
     search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
     linux /dayshield/slot-a/vmlinuz root=UUID=${ROOT_A_UUID} ro quiet splash
     initrd /dayshield/slot-a/initrd.img
 }
 
-menuentry 'DayShield slot B' --id 'dayshield-b' {
+menuentry 'DayShield Secondary System' --id 'dayshield-b' {
     search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
     linux /dayshield/slot-b/vmlinuz root=UUID=${ROOT_B_UUID} ro quiet splash
     initrd /dayshield/slot-b/initrd.img

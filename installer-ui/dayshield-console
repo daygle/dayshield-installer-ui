@@ -291,7 +291,7 @@ detect_disks() {
 
 choose_install_mode() {
   print_header 'Install Mode'
-  printf '  1) Upgrade from ISO   - stage this ISO rootfs into the inactive A/B slot and preserve configuration\n'
+  printf '  1) Upgrade from ISO   - stage this ISO rootfs into the inactive Primary/Secondary slot and preserve configuration\n'
   printf '  2) Reinstall from ISO - erase the selected disk and create a fresh DayShield appliance\n'
   while :; do
     answer=$(read_prompt 'Select mode [1-2] (Q to quit): ' yes)
@@ -346,7 +346,7 @@ choose_disk() {
       selected_disk_has_data=$has_data
       printf 'Selected /dev/%s\n' "$selected_disk"
       if [ "$install_mode" = upgrade ]; then
-        printf 'The inactive DayShield A/B rootfs slot on this disk will be replaced.\n'
+        printf 'The inactive DayShield Primary/Secondary rootfs slot on this disk will be replaced.\n'
       elif [ "$selected_disk_has_data" = true ]; then
         printf 'Warning: the selected disk contains existing partitions or data and will be erased.\n'
       else
@@ -519,7 +519,7 @@ main() {
     print_header 'Summary'
     printf 'Mode: Upgrade from ISO\n'
     printf 'Disk: /dev/%s\n' "$selected_disk"
-    printf '\nThe inactive A/B rootfs slot will be replaced with the ISO rootfs.\n'
+    printf '\nThe inactive Primary/Secondary rootfs slot will be replaced with the ISO rootfs.\n'
     printf 'Existing configuration will be copied from the active slot.\n'
     if ! confirm 'Stage ISO upgrade now?' no; then
       printf 'Upgrade aborted.\n'

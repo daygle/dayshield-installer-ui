@@ -1,5 +1,5 @@
 #!/bin/sh
-# partition.sh - Create the DayShield A/B GPT partition layout.
+# partition.sh - Create the DayShield Primary/Secondary GPT partition layout.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu

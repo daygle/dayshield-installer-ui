@@ -9,7 +9,7 @@ Web and console installer interface for **DayShield Firewall**, used by the live
 
 > Note: the web installer is intended as a one-time local setup interface on a trusted network or direct console. It is not protected by authentication, so it should not be exposed to untrusted networks.
 
-The live installer supports both **Upgrade from ISO** for existing A/B
+The live installer supports both **Upgrade from ISO** for existing Primary/Secondary
 appliances and **Reinstall from ISO** for fresh destructive installs.
 
 ## Quick integration

@@ -38,10 +38,10 @@ installer-ui/
 |   |-- detect-access.sh     # Detect reachable installer URLs/IPs
 |   |-- detect-disks.sh      # List block disks -> JSON
 |   |-- detect-ifaces.sh     # List network interfaces -> JSON
-|   |-- partition.sh         # GPT + EFI + shared boot + A/B root partition creation
-|   |-- format.sh            # FAT32 EFI + ext4 shared boot + A/B root formatting
+|   |-- partition.sh         # GPT + EFI + shared boot + Primary/Secondary root partition creation
+|   |-- format.sh            # FAT32 EFI + ext4 shared boot + Primary/Secondary root formatting
 |   |-- install-rootfs.sh    # Mount + extract rootfs.tar.zst from ISO
-|   |-- upgrade-rootfs.sh    # Stage rootfs.tar.zst into the inactive A/B slot
+|   |-- upgrade-rootfs.sh    # Stage rootfs.tar.zst into the inactive Primary/Secondary slot
 |   |-- install-bootloader.sh# GRUB BIOS + UEFI install
 |   |-- configure-system.sh  # Hostname, password, network, fstab, services
 |   |-- finalize.sh          # Unmount, sync, clean temp files
@@ -107,11 +107,11 @@ The ISO pipeline validates installer assets and fails fast if any required file 
 ## Installer Modes
 
 The web UI opens with **Fresh Install** selected by default. It creates a new
-A/B appliance layout on the selected disk. The same destructive install path is
+Primary/Secondary appliance layout on the selected disk. The same destructive install path is
 available as **Reinstall from ISO** when replacing an existing install.
 
 Both the web UI and `dayshield-console` expose the ISO upgrade and destructive
 install actions:
 
-- **Upgrade from ISO** requires an existing DayShield A/B disk. It formats only the inactive root slot, extracts the ISO rootfs there, copies persistent configuration/state from the active slot, updates GRUB for a one-shot trial boot, and leaves the active slot available for rollback.
-- **Reinstall from ISO** erases the selected disk and creates a fresh A/B layout: BIOS boot, EFI, shared boot, root slot A, and root slot B.
+- **Upgrade from ISO** requires an existing DayShield Primary/Secondary disk. It formats only the inactive root slot, extracts the ISO rootfs there, copies persistent configuration/state from the active slot, updates GRUB for a one-shot trial boot, and leaves the active slot available for rollback.
+- **Reinstall from ISO** erases the selected disk and creates a fresh Primary/Secondary layout: BIOS boot, EFI, shared boot, primary root slot, and secondary root slot.

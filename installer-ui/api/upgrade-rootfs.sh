@@ -1,5 +1,5 @@
 #!/bin/sh
-# upgrade-rootfs.sh - Stage an ISO rootfs into the inactive DayShield A/B slot.
+# upgrade-rootfs.sh - Stage an ISO rootfs into the inactive DayShield Primary/Secondary slot.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -237,19 +237,19 @@ write_grub_config() {
   boot_uuid=$(uuid_of "$BOOT_DEV")
   root_a_uuid=$(uuid_of "$ROOT_A_DEV")
   root_b_uuid=$(uuid_of "$ROOT_B_DEV")
-  [ -n "$boot_uuid" ] && [ -n "$root_a_uuid" ] && [ -n "$root_b_uuid" ] || reply_error "Failed to resolve A/B rootfs UUIDs"
+  [ -n "$boot_uuid" ] && [ -n "$root_a_uuid" ] && [ -n "$root_b_uuid" ] || reply_error "Failed to resolve Primary/Secondary rootfs UUIDs"
   mkdir -p "${TARGET}/etc/grub.d" "${TARGET}/boot/grub"
   cat > "${TARGET}/etc/grub.d/09_dayshield_ab" <<EOF
 #!/bin/sh
 set -e
 cat <<'GRUB_EOF'
-menuentry 'DayShield slot A' --id 'dayshield-a' {
+menuentry 'DayShield Primary System' --id 'dayshield-a' {
     search --no-floppy --fs-uuid --set=root ${boot_uuid}
     linux /dayshield/slot-a/vmlinuz root=UUID=${root_a_uuid} ro quiet splash
     initrd /dayshield/slot-a/initrd.img
 }
 
-menuentry 'DayShield slot B' --id 'dayshield-b' {
+menuentry 'DayShield Secondary System' --id 'dayshield-b' {
     search --no-floppy --fs-uuid --set=root ${boot_uuid}
     linux /dayshield/slot-b/vmlinuz root=UUID=${root_b_uuid} ro quiet splash
     initrd /dayshield/slot-b/initrd.img
@@ -301,7 +301,7 @@ TARGET_DISK="/dev/${DISK}"
 ROOT_A_DEV=$(blkid -L DAYSHIELD_ROOT_A 2>/dev/null || true)
 ROOT_B_DEV=$(blkid -L DAYSHIELD_ROOT_B 2>/dev/null || true)
 BOOT_DEV=$(blkid -L DAYSHIELD_BOOT 2>/dev/null || true)
-[ -n "$ROOT_A_DEV" ] && [ -n "$ROOT_B_DEV" ] && [ -n "$BOOT_DEV" ] || reply_error "No DayShield A/B installation found on this system"
+[ -n "$ROOT_A_DEV" ] && [ -n "$ROOT_B_DEV" ] && [ -n "$BOOT_DEV" ] || reply_error "No DayShield Primary/Secondary installation found on this system"
 require_on_target_disk "$ROOT_A_DEV"
 require_on_target_disk "$ROOT_B_DEV"
 require_on_target_disk "$BOOT_DEV"
