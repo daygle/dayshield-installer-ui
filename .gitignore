@@ -1,0 +1,5 @@
+# Ignore local editor and OS artifacts
+.vscode/
+.DS_Store
+*.log
+*~
