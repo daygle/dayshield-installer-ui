@@ -1,96 +1,26 @@
 ﻿# DayShield Installer UI
 
-A minimal, offline, deterministic installer UI for DayShield Firewall OS.
+The installer UI provides an offline web-based setup experience for DayShield live images and ISOs. It runs in the live environment on `tty1` and is served by `busybox httpd` on port `8443`.
 
-Runs on tty1 (physical console) and is served by busybox httpd on the chosen
-LAN interface address on port 8443 inside the live environment.
+## Purpose
 
-Default ISO behavior is to auto-start the web service. The tty1 launcher can be
-started manually if desired.
+This repository contains the static installer frontend and the shell-backed API scripts used during installation and upgrade.
 
-> Security note: the web installer is purposely unauthenticated for one-time local setup. Run it only on a trusted local network or directly on the installation console.
+- `index.html`, `app.js`, `styles.css` — browser UI
+- `api/*.sh` — installer actions exposed as CGI endpoints
+- `httpd.conf` — busybox httpd configuration
+- `systemd/` — live service units for console and web installer startup
+- `alpine.min.js`, `tailwind.min.js` — offline runtime bundles committed for air-gapped installs
 
-## Stack
+## Offline operation
 
-| Layer | Technology |
-|-------|-----------|
-| Markup | HTML5 |
-| Styles | Tailwind CSS v3 runtime (bundled script) |
-| Reactivity | Alpine.js |
-| Backend | POSIX sh scripts (busybox ash compatible) |
-| HTTP server | busybox httpd |
-| Init | systemd |
+No external CDN resources are fetched during install. The runtime bundles are included in the repo so the installer UI works in offline and air-gapped environments.
 
----
+## Integration
 
-## Repository Structure
+The ISO build uses this folder as the installer UI source. In `dayshield-iso`, point `INSTALLER_UI` at this directory when building the image.
 
-```text
-installer-ui/
-|-- index.html               # Main installer UI (Alpine + Tailwind runtime)
-|-- styles.css               # Plain browser CSS only (no build step)
-|-- app.js                   # Alpine application state and logic
-|-- dayshield-console        # Console wizard for upgrade/reinstall mode
-|-- alpine.min.js            # Alpine bundle (committed for offline use)
-|-- tailwind.min.js          # Tailwind runtime bundle (committed for offline use)
-|-- httpd.conf               # busybox httpd CGI configuration
-|-- api/
-|   |-- detect-access.sh     # Detect reachable installer URLs/IPs
-|   |-- detect-disks.sh      # List block disks -> JSON
-|   |-- detect-ifaces.sh     # List network interfaces -> JSON
-|   |-- partition.sh         # GPT + EFI + shared boot + Primary/Secondary root partition creation
-|   |-- format.sh            # FAT32 EFI + ext4 shared boot + Primary/Secondary root formatting
-|   |-- install-rootfs.sh    # Mount + extract rootfs.tar.zst from ISO
-|   |-- upgrade-rootfs.sh    # Stage rootfs.tar.zst into the inactive Primary/Secondary slot
-|   |-- install-bootloader.sh# GRUB BIOS + UEFI install
-|   |-- configure-system.sh  # Hostname, password, network, fstab, services
-|   |-- finalize.sh          # Unmount, sync, clean temp files
-|   `-- reboot.sh            # detached reboot trigger with fallbacks
-`-- systemd/
-    |-- installer-ui.service     # Console launcher
-    `-- installer-ui-web.service # busybox httpd service
-```
-
----
-
-## Offline Operation
-
-No external resources are fetched at install time.
-
-The required offline bundles are committed in the repository at:
-
-- `installer-ui/alpine.min.js`
-- `installer-ui/tailwind.min.js`
-
-Refresh both bundles only when you want to update the embedded Alpine or
-Tailwind runtime:
-
-```bash
-curl -Lo installer-ui/alpine.min.js \
-  "https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"
-
-curl -Lo installer-ui/tailwind.min.js \
-  "https://cdn.tailwindcss.com"
-```
-
----
-
-## CSS Architecture
-
-styles.css contains only plain browser-native CSS (focus rings, scroll behavior, font smoothing).
-
-Tailwind utility classes and component classes that use @apply are processed at runtime by tailwind.min.js via inline blocks in index.html:
-
-- script block: tailwind.config = { ... }
-- style block: <style type="text/tailwindcss"> ... </style>
-
-No Tailwind compile step is required for ISO builds.
-
----
-
-## Integrating With ISO Build
-
-From the dayshield-iso repository:
+Example:
 
 ```bash
 make iso \
@@ -99,19 +29,8 @@ make iso \
   INSTALLER_UI=../dayshield-installer-ui/installer-ui
 ```
 
-`ROOTFS_SHA256` may be omitted only when a sidecar checksum file exists at
-`<rootfs-path>.sha256`.
+## Notes
 
-The ISO pipeline validates installer assets and fails fast if any required file is missing.
-
-## Installer Modes
-
-The web UI opens with **Fresh Install** selected by default. It creates a new
-Primary/Secondary appliance layout on the selected disk. The same destructive install path is
-available as **Reinstall from ISO** when replacing an existing install.
-
-Both the web UI and `dayshield-console` expose the ISO upgrade and destructive
-install actions:
-
-- **Upgrade from ISO** requires an existing DayShield Primary/Secondary disk. It formats only the inactive root slot, extracts the ISO rootfs there, copies persistent configuration/state from the active slot, updates GRUB for a one-shot trial boot, and leaves the active slot available for rollback.
-- **Reinstall from ISO** erases the selected disk and creates a fresh Primary/Secondary layout: BIOS boot, EFI, shared boot, primary root slot, and secondary root slot.
+- The installer UI is intentionally unauthenticated. It is designed for one-time local setup on a trusted network or directly from the installation console.
+- The live installer exposes a temporary web UI on `http://<live-ip>:8443/`.
+- There is no separate build step for this repo; the UI is shipped as static assets.
