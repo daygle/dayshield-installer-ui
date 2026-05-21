@@ -558,7 +558,7 @@ EOF
 # Seed canonical Kea configuration used by DayShield and mirror it at Kea's
 # distro default path.
 mkdir -p "${TARGET}/etc/dayshield" "${TARGET}/etc/kea" "${TARGET}/var/lib/kea" "${TARGET}/var/log/kea"
-chmod 750 "${TARGET}/etc/kea"
+chmod 755 "${TARGET}/etc/kea"
 if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
 cat > "${TARGET}/etc/dayshield/kea-dhcp4.conf" << EOF
 {
