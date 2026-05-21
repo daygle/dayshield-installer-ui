@@ -706,6 +706,10 @@ cat > "${CORE_CFG_DIR}/config.json" << EOF
     "dnsServers": [],
     "sshEnabled": true,
     "sshPort": 22,
+    "sshPermitRootLogin": true,
+    "sshPasswordAuthentication": true,
+    "sshAuthorizedKeys": [],
+    "sshListenInterfaces": [],
     "webPort": 8443,
     "ipv6Enabled": false,
     "managementTlsAcmeDomain": null
