@@ -11,8 +11,9 @@ Web and console installer interface for **DayShield Firewall**, used by the live
 
 The installer UI provides an offline setup experience for DayShield live images. It supports:
 
+- **Fresh Install** for new DayShield systems on a blank or prepared disk.
 - **Upgrade from ISO** for existing Primary/Secondary appliances.
-- **Fresh install / Reinstall from ISO** for new systems or installs that overwrite the target system.
+- **Reinstall from ISO** to overwrite an existing target system with a fresh DayShield layout.
 - **Local web-based configuration** and console wizard on the live image.
 
 ## Security note
