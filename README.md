@@ -4,17 +4,24 @@ Web and console installer interface for **DayShield Firewall**, used by the live
 
 ## What this repo contains
 
-- `installer-ui/`: web UI assets, console wizard, CGI API scripts, and systemd units.
-- Root README: integration quick reference for ISO builds.
+- `installer-ui/`: the static web installer frontend, console launcher, CGI API scripts, and live systemd service units.
+- `installer-ui/README.md`: the installer runtime and integration reference.
 
-> Note: the web installer is intended as a one-time local setup interface on a trusted network or direct console. It is not protected by authentication, so it should not be exposed to untrusted networks.
+## What this installer does
 
-The live installer supports both **Upgrade from ISO** for existing Primary/Secondary
-appliances and **Reinstall from ISO** for fresh destructive installs.
+The installer UI provides an offline setup experience for DayShield live images. It supports:
+
+- **Upgrade from ISO** for existing Primary/Secondary appliances.
+- **Reinstall from ISO** for fresh installs that overwrite the target system.
+- **Local web-based configuration** and console wizard on the live image.
+
+## Security note
+
+> The installer UI is intentionally unauthenticated. It is designed for one-time local setup on a trusted network or direct console. Do not expose it to untrusted networks.
 
 ## Quick integration
 
-Build the installer-enabled ISO from `dayshield-iso`:
+Build an installer-enabled ISO from `dayshield-iso`:
 
 ```sh
 # Either pass ROOTFS_SHA256 explicitly, or place a sibling
@@ -27,4 +34,4 @@ make iso \
 
 ## Full docs
 
-See [installer-ui/README.md](installer-ui/README.md) for API, service, and runtime details.
+See [installer-ui/README.md](installer-ui/README.md) for detailed installer runtime behavior, API endpoints, and service startup information.
