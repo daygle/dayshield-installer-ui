@@ -46,10 +46,7 @@ function installer() {
     loadingIfaces: false,
 
     // Access details for remote clients (e.g. Windows browser)
-    accessIps: [],
     accessUrls: [],
-    fallbackIface: '',
-    fallbackAssigned: false,
     loadingAccess: false,
     showConnectHelp: false,
 
@@ -342,16 +339,10 @@ function installer() {
       this.loadingAccess = true;
       try {
         const data = await this.callApi('detect-access');
-        this.accessIps = data.ips || [];
         this.accessUrls = (data.urls || []).filter(u => !u.includes('127.0.0.1'));
-        this.fallbackIface = data.fallback_iface || '';
-        this.fallbackAssigned = !!data.fallback_assigned;
       } catch (_) {
         // Non-fatal: keep installer usable even if access detection fails.
-        this.accessIps = [];
         this.accessUrls = [];
-        this.fallbackIface = '';
-        this.fallbackAssigned = false;
       } finally {
         this.loadingAccess = false;
       }
