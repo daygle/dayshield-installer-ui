@@ -17,6 +17,16 @@ if ! command -v lsblk >/dev/null 2>&1; then
   exit 1
 fi
 
+label_device() {
+  blkid -L "$1" 2>/dev/null || true
+}
+
+root_slot_device() {
+  dev=$(label_device "$1")
+  [ -n "$dev" ] || dev=$(label_device "$2")
+  printf '%s' "$dev"
+}
+
 # Collect disk list, exclude loop/rom/ram devices
 DISKS_JSON=""
 FIRST=1
@@ -50,8 +60,8 @@ while IFS= read -r line; do
 
   has_ab_install=false
   if command -v blkid >/dev/null 2>&1; then
-    root_a=$(blkid -L DAYSHIELD_ROOT_A 2>/dev/null || true)
-    root_b=$(blkid -L DAYSHIELD_ROOT_B 2>/dev/null || true)
+    root_a=$(root_slot_device DS_PRIMARY DAYSHIELD_ROOT_A)
+    root_b=$(root_slot_device DS_SECONDARY DAYSHIELD_ROOT_B)
     boot_part=$(blkid -L DAYSHIELD_BOOT 2>/dev/null || true)
     if [ -n "$root_a" ] && [ -n "$root_b" ] && [ -n "$boot_part" ]; then
       ab_matches=0

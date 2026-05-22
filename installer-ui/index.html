@@ -185,7 +185,7 @@
       <!-- ── Step 1: Disk Selection ──────────────────────────── -->
       <div x-show="step === 1" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
         <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Select Existing Appliance Disk' : (isFreshInstallMode() ? 'Select Fresh Install Disk' : 'Select Reinstall Disk')"></h2>
-        <p class="text-gray-400 text-sm mb-6" x-text="isUpgradeMode() ? 'Choose the existing DayShield disk with DAYSHIELD_ROOTFS_A, DAYSHIELD_ROOTFS_B, and DAYSHIELD_BOOT labels. The inactive slot will be replaced; configuration is preserved.' : (selectedDiskInfo() ? (selectedDiskInfo().has_data ? 'Choose the disk where DayShield will be installed. Existing partitions or data on the selected disk will be erased.' : 'Choose the disk where DayShield will be installed. The selected disk appears to be blank.') : 'Choose the disk where DayShield will be installed.')"></p>
+        <p class="text-gray-400 text-sm mb-6" x-text="isUpgradeMode() ? 'Choose the existing DayShield disk with DS_PRIMARY, DS_SECONDARY, and DAYSHIELD_BOOT labels. Legacy DAYSHIELD_ROOT_A/B labels are also accepted. The inactive slot will be replaced; configuration is preserved.' : (selectedDiskInfo() ? (selectedDiskInfo().has_data ? 'Choose the disk where DayShield will be installed. Existing partitions or data on the selected disk will be erased.' : 'Choose the disk where DayShield will be installed. The selected disk appears to be blank.') : 'Choose the disk where DayShield will be installed.')"></p>
 
         <div x-show="loadingDisks" class="flex items-center gap-3 text-gray-400 py-8">
           <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -559,11 +559,11 @@
           </div>
           <div class="summary-row">
             <span class="summary-label">Primary Rootfs Slot</span>
-            <span class="summary-value" x-text="partitionPath(4) + '  (DAYSHIELD_ROOTFS_A)'"></span>
+            <span class="summary-value" x-text="partitionPath(4) + '  (DS_PRIMARY)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">Secondary Rootfs Slot</span>
-            <span class="summary-value" x-text="partitionPath(5) + '  (DAYSHIELD_ROOTFS_B)'"></span>
+            <span class="summary-value" x-text="partitionPath(5) + '  (DS_SECONDARY)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">Bootloader</span>

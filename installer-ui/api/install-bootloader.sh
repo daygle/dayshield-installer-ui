@@ -140,13 +140,23 @@ install_slot_boot_files() {
   cp "$initrd" "${dest}/initrd.img"
 }
 
+label_device() {
+  blkid -L "$1" 2>/dev/null || true
+}
+
+root_slot_device() {
+  dev=$(label_device "$1")
+  [ -n "$dev" ] || dev=$(label_device "$2")
+  printf '%s' "$dev"
+}
+
 if ! find_latest_boot_file "${TARGET}/boot" "vmlinuz-" "vmlinuz" >/dev/null 2>&1; then
   chroot "$TARGET" update-initramfs -c -k all >>"$LOG" 2>&1 || true
 fi
 
 BOOT_DEV=$(blkid -L DAYSHIELD_BOOT 2>/dev/null || true)
-ROOT_A_DEV=$(blkid -L DAYSHIELD_ROOT_A 2>/dev/null || true)
-ROOT_B_DEV=$(blkid -L DAYSHIELD_ROOT_B 2>/dev/null || true)
+ROOT_A_DEV=$(root_slot_device DS_PRIMARY DAYSHIELD_ROOT_A)
+ROOT_B_DEV=$(root_slot_device DS_SECONDARY DAYSHIELD_ROOT_B)
 [ -n "$BOOT_DEV" ] && [ -n "$ROOT_A_DEV" ] && [ -n "$ROOT_B_DEV" ] || json_error "Primary/Secondary rootfs labels were not found"
 
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || true)

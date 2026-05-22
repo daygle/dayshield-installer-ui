@@ -10,6 +10,12 @@ set -eu
 printf 'Content-Type: application/json\r\n'
 printf '\r\n'
 
+json_error() {
+  msg=$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  printf '{"error":"%s"}\n' "$msg"
+  exit 1
+}
+
 decode_urlencoded() {
   local s="$1"
   local out=""
@@ -58,6 +64,27 @@ if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
 fi
 
 TARGET="/mnt/target"
+
+if [ ! -d "${TARGET}/etc" ]; then
+  json_error "Target root not found at ${TARGET} - run install-rootfs first"
+fi
+
+FIRSTBOOT_SRC_DIR="/usr/lib/dayshield-installer"
+FIRSTBOOT_RUN_SRC="${FIRSTBOOT_SRC_DIR}/firstboot-run.sh"
+FIRSTBOOT_SERVICE_SRC="${FIRSTBOOT_SRC_DIR}/firstboot.service"
+[ -f "$FIRSTBOOT_RUN_SRC" ] || json_error "Missing firstboot-run.sh in live installer"
+[ -f "$FIRSTBOOT_SERVICE_SRC" ] || json_error "Missing firstboot.service in live installer"
+
+mkdir -p "${TARGET}/usr/lib/dayshield-installer" "${TARGET}/etc/systemd/system" "${TARGET}/etc/dayshield"
+if ! install -m 755 "$FIRSTBOOT_RUN_SRC" "${TARGET}/usr/lib/dayshield-installer/firstboot-run.sh" 2>/dev/null; then
+  cp "$FIRSTBOOT_RUN_SRC" "${TARGET}/usr/lib/dayshield-installer/firstboot-run.sh"
+  chmod 755 "${TARGET}/usr/lib/dayshield-installer/firstboot-run.sh"
+fi
+if ! install -m 644 "$FIRSTBOOT_SERVICE_SRC" "${TARGET}/etc/systemd/system/firstboot.service" 2>/dev/null; then
+  cp "$FIRSTBOOT_SERVICE_SRC" "${TARGET}/etc/systemd/system/firstboot.service"
+  chmod 644 "${TARGET}/etc/systemd/system/firstboot.service"
+fi
+touch "${TARGET}/etc/dayshield/.firstboot"
 
 # ── Enable firstboot service ──────────────────────────────────────
 # firstboot.service runs once on the first post-install boot to perform

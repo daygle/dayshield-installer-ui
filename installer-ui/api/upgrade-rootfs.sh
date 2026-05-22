@@ -128,6 +128,16 @@ uuid_of() {
   blkid -s UUID -o value "$1" 2>/dev/null || true
 }
 
+label_device() {
+  blkid -L "$1" 2>/dev/null || true
+}
+
+root_slot_device() {
+  dev=$(label_device "$1")
+  [ -n "$dev" ] || dev=$(label_device "$2")
+  printf '%s' "$dev"
+}
+
 read_default_slot() {
   grubenv="${BOOT_MOUNT}/grub/grubenv"
   if [ -f "$grubenv" ]; then
@@ -298,8 +308,8 @@ printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$' || reply_error "Invalid disk nam
 TARGET_DISK="/dev/${DISK}"
 [ -b "$TARGET_DISK" ] || reply_error "Device not found: $TARGET_DISK"
 
-ROOT_A_DEV=$(blkid -L DAYSHIELD_ROOT_A 2>/dev/null || true)
-ROOT_B_DEV=$(blkid -L DAYSHIELD_ROOT_B 2>/dev/null || true)
+ROOT_A_DEV=$(root_slot_device DS_PRIMARY DAYSHIELD_ROOT_A)
+ROOT_B_DEV=$(root_slot_device DS_SECONDARY DAYSHIELD_ROOT_B)
 BOOT_DEV=$(blkid -L DAYSHIELD_BOOT 2>/dev/null || true)
 [ -n "$ROOT_A_DEV" ] && [ -n "$ROOT_B_DEV" ] && [ -n "$BOOT_DEV" ] || reply_error "No DayShield Primary/Secondary installation found on this system"
 require_on_target_disk "$ROOT_A_DEV"
@@ -323,8 +333,8 @@ BOOT_MOUNT=$(mktemp -d)
 mount -o ro "$BOOT_DEV" "$BOOT_MOUNT" 2>/dev/null || reply_error "Failed to mount shared boot partition"
 ACTIVE_SLOT=$(read_default_slot)
 case "$ACTIVE_SLOT" in
-  a) ACTIVE_DEV="$ROOT_A_DEV"; INACTIVE_SLOT="b"; INACTIVE_DEV="$ROOT_B_DEV"; INACTIVE_LABEL="DAYSHIELD_ROOT_B" ;;
-  b) ACTIVE_DEV="$ROOT_B_DEV"; INACTIVE_SLOT="a"; INACTIVE_DEV="$ROOT_A_DEV"; INACTIVE_LABEL="DAYSHIELD_ROOT_A" ;;
+  a) ACTIVE_DEV="$ROOT_A_DEV"; INACTIVE_SLOT="b"; INACTIVE_DEV="$ROOT_B_DEV"; INACTIVE_LABEL="DS_SECONDARY" ;;
+  b) ACTIVE_DEV="$ROOT_B_DEV"; INACTIVE_SLOT="a"; INACTIVE_DEV="$ROOT_A_DEV"; INACTIVE_LABEL="DS_PRIMARY" ;;
   *) reply_error "Invalid active slot detected: $ACTIVE_SLOT" ;;
 esac
 umount "$BOOT_MOUNT" 2>/dev/null || true

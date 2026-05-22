@@ -56,8 +56,8 @@ parted_err=$(parted -s "$DEV" \
   mkpart "EFI" fat32 2MiB 514MiB \
   set 2 esp on \
   mkpart "BOOT" ext4 514MiB 1538MiB \
-  mkpart "ROOT_A" ext4 1538MiB 50% \
-  mkpart "ROOT_B" ext4 50% 100% 2>&1) || json_error "parted failed: $parted_err"
+  mkpart "PRIMARY_ROOTFS" ext4 1538MiB 50% \
+  mkpart "SECONDARY_ROOTFS" ext4 50% 100% 2>&1) || json_error "parted failed: $parted_err"
 
 partprobe "$DEV" >/dev/null 2>&1 || true
 if command -v udevadm >/dev/null 2>&1; then
