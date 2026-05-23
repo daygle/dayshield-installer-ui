@@ -5,7 +5,6 @@ set -eu
 dmesg -n 1 2>/dev/null || true
 printf '\033c'
 
-AUTO_LAUNCH="${INSTALLER_UI_AUTO_LAUNCH:-1}"
 COMPACT_PREF="${INSTALLER_UI_COMPACT:-auto}"
 
 supports_color() {
@@ -80,18 +79,6 @@ is_compact_mode() {
   return 1
 }
 
-should_auto_launch() {
-  _mode="$(printf '%s' "${AUTO_LAUNCH}" | tr '[:upper:]' '[:lower:]')"
-  case "${_mode}" in
-    1|true|yes|on|auto)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 status_backend_text() {
   if is_listening_8443; then
     printf '%sUP%s' "${C_GREEN}" "${C_RESET}"
@@ -116,56 +103,6 @@ normalize_yes_no() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]'
 }
 
-detect_browser() {
-  if command -v epiphany-browser >/dev/null 2>&1; then
-    printf 'epiphany-browser\n'
-    return 0
-  fi
-  if command -v firefox >/dev/null 2>&1; then
-    printf 'firefox\n'
-    return 0
-  fi
-  if command -v chromium >/dev/null 2>&1; then
-    printf 'chromium\n'
-    return 0
-  fi
-  if command -v surf >/dev/null 2>&1; then
-    printf 'surf\n'
-    return 0
-  fi
-  if command -v midori >/dev/null 2>&1; then
-    printf 'midori\n'
-    return 0
-  fi
-  return 1
-}
-
-launch_browser() {
-  _url="$1"
-  _browser="${2:-}"
-
-  case "${_browser}" in
-    epiphany-browser)
-      epiphany-browser --application-mode="${_url}" >/dev/null 2>&1 || epiphany-browser "${_url}"
-      ;;
-    firefox)
-      firefox --kiosk "${_url}" >/dev/null 2>&1 || firefox "${_url}"
-      ;;
-    chromium)
-      chromium --kiosk --no-first-run --disable-translate "${_url}" >/dev/null 2>&1 || chromium "${_url}"
-      ;;
-    surf)
-      surf "${_url}"
-      ;;
-    midori)
-      midori "${_url}"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 start_emergency_httpd() {
   if command -v busybox >/dev/null 2>&1 && busybox --list 2>/dev/null | grep -qx httpd; then
     /bin/sh /installer-ui/start-httpd.sh >/dev/null 2>&1 &
@@ -187,19 +124,6 @@ if ! is_listening_8443; then
 fi
 
 URL="http://127.0.0.1:8443/"
-
-BROWSER=""
-if BROWSER="$(detect_browser 2>/dev/null || true)"; then
-  :
-fi
-
-if [ -n "${BROWSER}" ] && should_auto_launch; then
-  printf "  Launching local web installer in kiosk mode...\n"
-  printf "  Close the browser to return to this menu.\n\n"
-  sleep 1
-  launch_browser "${URL}" "${BROWSER}" || true
-  printf '\033c'
-fi
 
 while true; do
   LAN4_ADDRS="$({ ip -o -4 addr show scope global 2>/dev/null || true; } | awk '{print $2 " " $4}')"
