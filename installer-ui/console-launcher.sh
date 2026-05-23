@@ -328,15 +328,21 @@ while true; do
       case "$CONFIRM" in
         y|yes)
           printf '  Rebooting...\n'
+          rebooted=false
           if command -v systemctl >/dev/null 2>&1; then
-            systemctl reboot >/dev/null 2>&1 || true
+            systemctl reboot >/dev/null 2>&1 && rebooted=true || true
           fi
-          if command -v reboot >/dev/null 2>&1; then
-            reboot >/dev/null 2>&1 || true
+          if [ "$rebooted" != true ] && command -v reboot >/dev/null 2>&1; then
+            reboot >/dev/null 2>&1 && rebooted=true || true
           fi
-          printf '  ERROR: reboot command failed.\n'
-          printf '  Press Enter to return to menu...'
-          read -r _ 2>/dev/null || true
+          if [ "$rebooted" != true ] && command -v shutdown >/dev/null 2>&1; then
+            shutdown -r now >/dev/null 2>&1 && rebooted=true || true
+          fi
+          if [ "$rebooted" != true ]; then
+            printf '  ERROR: reboot command failed.\n'
+            printf '  Press Enter to return to menu...'
+            read -r _ 2>/dev/null || true
+          fi
           printf '\033c'
           continue
           ;;
