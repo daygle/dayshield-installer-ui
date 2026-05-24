@@ -103,6 +103,20 @@ normalize_yes_no() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]'
 }
 
+launch_interactive_shell() {
+  # Force child shell I/O to the active console so it behaves interactively
+  # even when this launcher is managed by systemd.
+  if command -v bash >/dev/null 2>&1 && [ -x /bin/bash ]; then
+    /bin/bash -i </dev/tty >/dev/tty 2>&1 || true
+    return
+  fi
+  if command -v busybox >/dev/null 2>&1; then
+    busybox ash </dev/tty >/dev/tty 2>&1 || true
+    return
+  fi
+  /bin/sh </dev/tty >/dev/tty 2>&1 || true
+}
+
 start_emergency_httpd() {
   if command -v busybox >/dev/null 2>&1 && busybox --list 2>/dev/null | grep -qx httpd; then
     /bin/sh /installer-ui/start-httpd.sh >/dev/null 2>&1 &
@@ -236,11 +250,7 @@ while true; do
       ;;
     2)
       printf '  Opening shell... (type "exit" to return to menu)\n\n'
-      if command -v bash >/dev/null 2>&1; then
-        /bin/bash --login || true
-      else
-        /bin/sh || true
-      fi
+      launch_interactive_shell
       printf '\033c'
       continue
       ;;
