@@ -497,6 +497,12 @@
                      class="input-field" autocomplete="off" spellcheck="false" />
             </div>
           </div>
+          <div x-show="lanDhcpEnabled" class="flex items-center justify-between gap-3">
+            <p x-show="dhcpRangeError()" x-text="dhcpRangeError()" class="text-xs text-red-400"></p>
+            <button type="button" @click="refreshDhcpDefaults(true)" class="btn-secondary text-xs ml-auto">
+              Use subnet defaults
+            </button>
+          </div>
 
           <p x-show="wanIface && iface && wanIface === iface" class="text-xs text-red-400 mt-1">WAN and LAN must be different interfaces.</p>
 
