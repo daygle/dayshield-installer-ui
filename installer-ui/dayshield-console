@@ -292,7 +292,8 @@ detect_disks() {
 choose_install_mode() {
   print_header 'Install Mode'
   printf '  1) Upgrade from ISO   - stage this ISO rootfs into the inactive Primary/Secondary slot and preserve configuration\n'
-  printf '  2) Reinstall from ISO - erase the selected disk and create a fresh DayShield appliance\n'
+  printf '  2) Fresh Install      - erase the selected disk and create a fresh DayShield appliance\n'
+  printf '     (previously labeled "Reinstall from ISO")\n'
   while :; do
     answer=$(read_prompt 'Select mode [1-2] (Q to quit): ' yes)
     case "$answer" in
@@ -301,9 +302,9 @@ choose_install_mode() {
         printf 'Selected: Upgrade from ISO\n'
         return 0
         ;;
-      2|reinstall|Reinstall|install|Install)
+      2|fresh|Fresh|fresh-install|Fresh-Install|reinstall|Reinstall|install|Install)
         install_mode=reinstall
-        printf 'Selected: Reinstall from ISO\n'
+        printf 'Selected: Fresh Install\n'
         return 0
         ;;
       *) printf 'Please enter 1 or 2.\n' ;;
@@ -312,7 +313,7 @@ choose_install_mode() {
 }
 
 choose_disk() {
-  local disk
+  local disk disk_count
   if [ "$install_mode" = upgrade ]; then
     print_header 'Existing Appliance Disk'
   else
@@ -326,6 +327,7 @@ choose_disk() {
     fi
     printf 'Available disks:\n'
     printf '%s\n' "$disk_list" | awk -F'|' '{ printf "  %d) /dev/%s (%s)%s\n", NR, $1, $2, $3 == "true" ? " [contains data]" : "" }'
+    disk_count=$(printf '%s\n' "$disk_list" | awk 'END {print NR+0}')
     if [ -n "${selected_disk:-}" ]; then
       printf 'Current disk: /dev/%s\n' "$selected_disk"
     fi
@@ -336,7 +338,15 @@ choose_disk() {
     fi
     answer=$(printf '%s' "$answer" | tr -d '[:space:]')
     if [ -z "$answer" ]; then
-      printf 'Please choose a disk number.\n'
+      if [ "$disk_count" -eq 1 ]; then
+        answer=1
+        printf 'Auto-selecting 1 (only one disk found).\n'
+      else
+        printf 'Please choose a disk number.\n'
+        continue
+      fi
+    fi
+    if [ -z "$answer" ]; then
       continue
     fi
     disk=$(printf '%s\n' "$disk_list" | awk -F'|' -v n="$answer" 'NR==n{print $1}')
@@ -539,6 +549,7 @@ main() {
   fi
 
   print_header 'Partitioning'
+  printf 'Mode: Fresh Install\n'
   printf 'The selected disk will be repartitioned and all existing data will be erased.\n'
   if ! confirm 'Continue with disk partitioning?' no; then
     printf 'Installation aborted.\n'
