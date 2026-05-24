@@ -863,6 +863,27 @@ else
   DAYSHIELD_SVC_WARNING="dayshield.service not found in target rootfs; service will not start on boot"
 fi
 
+mkdir -p "${TARGET}/var/log/dayshield" "${TARGET}/etc/systemd/system/dayshield.service.d"
+DAYSHIELD_ENGINE_PATHS="${TARGET}/etc/systemd/system/dayshield.service.d/dayshield-engine-paths.conf"
+if [ ! -f "${DAYSHIELD_ENGINE_PATHS}" ]; then
+  cat > "${DAYSHIELD_ENGINE_PATHS}" <<'EOF'
+[Service]
+ReadWritePaths=/var/log/dayshield
+EOF
+elif ! grep -Eq '^[[:space:]]*ReadWritePaths[[:space:]]*=[[:space:]]*/var/log/dayshield[[:space:]]*$' "${DAYSHIELD_ENGINE_PATHS}"; then
+  if grep -Eq '^[[:space:]]*\[Service\][[:space:]]*$' "${DAYSHIELD_ENGINE_PATHS}"; then
+    printf '\nReadWritePaths=/var/log/dayshield\n' >> "${DAYSHIELD_ENGINE_PATHS}"
+  else
+    DAYSHIELD_ENGINE_PATHS_TMP="${DAYSHIELD_ENGINE_PATHS}.tmp"
+    {
+      printf '[Service]\n'
+      cat "${DAYSHIELD_ENGINE_PATHS}"
+      printf '\nReadWritePaths=/var/log/dayshield\n'
+    } > "${DAYSHIELD_ENGINE_PATHS_TMP}"
+    mv "${DAYSHIELD_ENGINE_PATHS_TMP}" "${DAYSHIELD_ENGINE_PATHS}"
+  fi
+fi
+
 # Ensure systemd-resolved remains disabled in favour of unbound.
 mkdir -p "${TARGET}/etc/systemd/system"
 ln -sf /dev/null "${TARGET}/etc/systemd/system/systemd-resolved.service" 2>/dev/null || true
