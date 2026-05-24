@@ -58,11 +58,9 @@ $_ip
 EOF
   for _octet in "$_o1" "$_o2" "$_o3" "$_o4"; do
     case "$_octet" in
-      ''|*[!0-9]*) return 1 ;;
+      0|[1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]) ;;
+      *) return 1 ;;
     esac
-    if [ "$_octet" -lt 0 ] || [ "$_octet" -gt 255 ]; then
-      return 1
-    fi
   done
   return 0
 }
@@ -98,6 +96,53 @@ network_cidr_from_host() {
   _net_u32=$(( _ip_u32 & _mask ))
   _net_ip=$(u32_to_ipv4 "$_net_u32")
   printf '%s/%s' "$_net_ip" "$_prefix"
+}
+
+derive_dhcp_range_from_subnet() {
+  _host_ip="$1"
+  _cidr="$2"
+  _net_ip="${_cidr%/*}"
+  _prefix="${_cidr#*/}"
+  _net_u32=$(ipv4_to_u32 "$_net_ip")
+  _host_u32=$(ipv4_to_u32 "$_host_ip")
+
+  _size=$(( 1 << (32 - _prefix) ))
+  if [ "$_prefix" -ge 31 ]; then
+    _first_u32=$_net_u32
+    _last_u32=$(( _net_u32 + _size - 1 ))
+  else
+    _first_u32=$(( _net_u32 + 1 ))
+    _last_u32=$(( _net_u32 + _size - 2 ))
+  fi
+
+  _start_u32=$(( _net_u32 + 100 ))
+  _end_u32=$(( _net_u32 + 199 ))
+
+  if [ "$_start_u32" -lt "$_first_u32" ] || [ "$_start_u32" -gt "$_last_u32" ]; then
+    _start_u32=$(( _first_u32 + 1 ))
+    if [ "$_start_u32" -gt "$_last_u32" ]; then
+      _start_u32=$_first_u32
+    fi
+  fi
+  if [ "$_end_u32" -lt "$_start_u32" ] || [ "$_end_u32" -gt "$_last_u32" ]; then
+    _end_u32=$_last_u32
+  fi
+
+  if [ "$_host_u32" -ge "$_start_u32" ] && [ "$_host_u32" -le "$_end_u32" ]; then
+    if [ "$_host_u32" -eq "$_start_u32" ]; then
+      _start_u32=$(( _start_u32 + 1 ))
+    elif [ "$_host_u32" -eq "$_end_u32" ]; then
+      _end_u32=$(( _end_u32 - 1 ))
+    else
+      _start_u32=$(( _host_u32 + 1 ))
+    fi
+  fi
+
+  if [ "$_start_u32" -gt "$_end_u32" ]; then
+    return 1
+  fi
+
+  printf '%s %s\n' "$(u32_to_ipv4 "$_start_u32")" "$(u32_to_ipv4 "$_end_u32")"
 }
 
 escape_for_double_quotes() {
@@ -236,6 +281,13 @@ fi
 SUBNET_CIDR=$(network_cidr_from_host "$LAN_IP" "$LAN_PREFIX")
 
 if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
+  if [ "$DHCP_START" = "192.168.1.100" ] && [ "$DHCP_END" = "192.168.1.199" ]; then
+    if _derived_range=$(derive_dhcp_range_from_subnet "$LAN_IP" "$SUBNET_CIDR"); then
+      DHCP_START=${_derived_range%% *}
+      DHCP_END=${_derived_range#* }
+    fi
+  fi
+
   _subnet_ip="${SUBNET_CIDR%/*}"
   _subnet_prefix="${SUBNET_CIDR#*/}"
   _subnet_base_u32=$(ipv4_to_u32 "$_subnet_ip")

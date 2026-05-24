@@ -34,6 +34,8 @@ function installer() {
     lanDhcpEnabled: true,
     dhcpStart: '192.168.1.100',
     dhcpEnd: '192.168.1.199',
+    lastAutoDhcpStart: '192.168.1.100',
+    lastAutoDhcpEnd: '192.168.1.199',
     wanType: 'dhcp',
     wanPppoeUser: '',
     wanPppoePass: '',
@@ -86,6 +88,9 @@ function installer() {
     init() {
       // Only show remote-access instructions when the installer UI is opened locally.
       this.showConnectHelp = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
+      this.refreshDhcpDefaults(true);
+      this.$watch('lanIp', () => this.refreshDhcpDefaults());
+      this.$watch('lanPrefix', () => this.refreshDhcpDefaults());
       // Load disks eagerly so step 1 is ready when user arrives
       this.loadDisks();
       this.loadAccessInfo();
@@ -121,9 +126,118 @@ function installer() {
       if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(text)) return false;
       const octets = text.split('.');
       return octets.length === 4 && octets.every(o => {
+        if (o.length > 1 && o.startsWith('0')) return false;
         const n = Number(o);
         return Number.isInteger(n) && n >= 0 && n <= 255;
       });
+    },
+
+    ipv4ToNumber(value) {
+      if (!this.isValidIpv4(value)) return null;
+      return (value || '').trim().split('.').reduce((acc, octet) => (
+        ((acc << 8) + Number(octet)) >>> 0
+      ), 0);
+    },
+
+    numberToIpv4(value) {
+      const n = Number(value) >>> 0;
+      return [
+        (n >>> 24) & 255,
+        (n >>> 16) & 255,
+        (n >>> 8) & 255,
+        n & 255,
+      ].join('.');
+    },
+
+    lanSubnetInfo() {
+      const prefix = Number((this.lanPrefix || '').trim());
+      const ipNum = this.ipv4ToNumber(this.lanIp);
+      if (ipNum === null || !Number.isInteger(prefix) || prefix < 1 || prefix > 32) {
+        return null;
+      }
+
+      const mask = prefix === 32 ? 0xffffffff : (0xffffffff << (32 - prefix)) >>> 0;
+      const network = (ipNum & mask) >>> 0;
+      const broadcast = (network | (~mask >>> 0)) >>> 0;
+      const firstHost = prefix >= 31 ? network : network + 1;
+      const lastHost = prefix >= 31 ? broadcast : broadcast - 1;
+
+      return { ipNum, prefix, network, broadcast, firstHost, lastHost };
+    },
+
+    isIpv4InLanSubnet(value) {
+      const info = this.lanSubnetInfo();
+      const ipNum = this.ipv4ToNumber(value);
+      return !!info && ipNum !== null && ipNum >= info.firstHost && ipNum <= info.lastHost;
+    },
+
+    defaultDhcpRange() {
+      const info = this.lanSubnetInfo();
+      if (!info || info.firstHost > info.lastHost) return null;
+
+      let start = info.network + 100;
+      let end = info.network + 199;
+
+      if (start < info.firstHost || start > info.lastHost) {
+        start = Math.min(info.firstHost + 1, info.lastHost);
+      }
+      if (end < start || end > info.lastHost) {
+        end = info.lastHost;
+      }
+
+      if (info.ipNum >= start && info.ipNum <= end) {
+        if (info.ipNum === start) {
+          start += 1;
+        } else if (info.ipNum === end) {
+          end -= 1;
+        } else {
+          start = info.ipNum + 1;
+        }
+      }
+
+      if (start > end) return null;
+      return {
+        start: this.numberToIpv4(start),
+        end: this.numberToIpv4(end),
+      };
+    },
+
+    refreshDhcpDefaults(force = false) {
+      const range = this.defaultDhcpRange();
+      if (!range) return;
+
+      const currentMatchesLastAuto =
+        this.dhcpStart === this.lastAutoDhcpStart &&
+        this.dhcpEnd === this.lastAutoDhcpEnd;
+      const currentOutsideSubnet =
+        !this.isIpv4InLanSubnet(this.dhcpStart) ||
+        !this.isIpv4InLanSubnet(this.dhcpEnd);
+      const currentEmpty = !this.dhcpStart || !this.dhcpEnd;
+
+      if (force || currentEmpty || currentMatchesLastAuto || currentOutsideSubnet) {
+        this.dhcpStart = range.start;
+        this.dhcpEnd = range.end;
+      }
+
+      this.lastAutoDhcpStart = range.start;
+      this.lastAutoDhcpEnd = range.end;
+    },
+
+    dhcpRangeError() {
+      if (!this.lanDhcpEnabled) return '';
+      if (!this.isValidIpv4(this.dhcpStart)) return 'DHCP pool start must be a valid IPv4 address.';
+      if (!this.isValidIpv4(this.dhcpEnd)) return 'DHCP pool end must be a valid IPv4 address.';
+      if (!this.isIpv4InLanSubnet(this.dhcpStart) || !this.isIpv4InLanSubnet(this.dhcpEnd)) {
+        return 'DHCP pool must be within the LAN subnet.';
+      }
+
+      const start = this.ipv4ToNumber(this.dhcpStart);
+      const end = this.ipv4ToNumber(this.dhcpEnd);
+      if (start !== null && end !== null && start > end) {
+        return 'DHCP pool start must be before or equal to DHCP pool end.';
+      }
+
+      return '';
     },
 
     partitionPath(number) {
@@ -147,8 +261,7 @@ function installer() {
           const ipValid = this.isValidIpv4(this.lanIp);
           const prefix = Number((this.lanPrefix || '').trim());
           const prefixValid = Number.isInteger(prefix) && prefix >= 1 && prefix <= 32;
-          const dhcpStartValid = this.isValidIpv4(this.dhcpStart);
-          const dhcpEndValid = this.isValidIpv4(this.dhcpEnd);
+          const dhcpRangeValid = !this.dhcpRangeError();
           return (
             this.hostname.length > 0 &&
             this.password.length >= 8 &&
@@ -160,7 +273,7 @@ function installer() {
             prefixValid &&
             wan !== lan &&
             (this.wanType !== 'pppoe' || (!!this.wanPppoeUser && !!this.wanPppoePass)) &&
-            (!this.lanDhcpEnabled || (dhcpStartValid && dhcpEndValid))
+            (!this.lanDhcpEnabled || dhcpRangeValid)
           );
         }
         case 5: return true;
@@ -206,6 +319,11 @@ function installer() {
           // Should not be reachable while installing; handled by pipeline completion
           break;
         case 4:
+          this.refreshDhcpDefaults();
+          if (this.dhcpRangeError()) {
+            this.error = this.dhcpRangeError();
+            return;
+          }
           await this.loadIfaces(); // refresh if needed
           this.iface = (this.iface || '').trim();
           this.wanIface = (this.wanIface || '').trim();
