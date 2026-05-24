@@ -67,6 +67,39 @@ EOF
   return 0
 }
 
+ipv4_to_u32() {
+  _ip="$1"
+  IFS='.' read -r _o1 _o2 _o3 _o4 << EOF
+$_ip
+EOF
+  printf '%u' "$(( (_o1 << 24) | (_o2 << 16) | (_o3 << 8) | _o4 ))"
+}
+
+u32_to_ipv4() {
+  _u32="$1"
+  printf '%d.%d.%d.%d' \
+    "$(( (_u32 >> 24) & 255 ))" \
+    "$(( (_u32 >> 16) & 255 ))" \
+    "$(( (_u32 >> 8) & 255 ))" \
+    "$(( _u32 & 255 ))"
+}
+
+network_cidr_from_host() {
+  _ip="$1"
+  _prefix="$2"
+
+  if [ "$_prefix" -eq 32 ]; then
+    _mask=4294967295
+  else
+    _mask=$(( (0xFFFFFFFF << (32 - _prefix)) & 0xFFFFFFFF ))
+  fi
+
+  _ip_u32=$(ipv4_to_u32 "$_ip")
+  _net_u32=$(( _ip_u32 & _mask ))
+  _net_ip=$(u32_to_ipv4 "$_net_u32")
+  printf '%s/%s' "$_net_ip" "$_prefix"
+}
+
 escape_for_double_quotes() {
   # Escape backslash and double-quote for strings wrapped in double quotes.
   printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
@@ -200,7 +233,31 @@ if ! validate_ipv4 "$DHCP_END"; then
   printf '{"error":"Invalid dhcp_end"}\n'; exit 1
 fi
 
-SUBNET_CIDR="${LAN_IP}/${LAN_PREFIX}"
+SUBNET_CIDR=$(network_cidr_from_host "$LAN_IP" "$LAN_PREFIX")
+
+if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
+  _subnet_ip="${SUBNET_CIDR%/*}"
+  _subnet_prefix="${SUBNET_CIDR#*/}"
+  _subnet_base_u32=$(ipv4_to_u32 "$_subnet_ip")
+  _dhcp_start_u32=$(ipv4_to_u32 "$DHCP_START")
+  _dhcp_end_u32=$(ipv4_to_u32 "$DHCP_END")
+
+  if [ "$_subnet_prefix" -eq 32 ]; then
+    _subnet_mask=4294967295
+  else
+    _subnet_mask=$(( (0xFFFFFFFF << (32 - _subnet_prefix)) & 0xFFFFFFFF ))
+  fi
+
+  if [ "$(( _dhcp_start_u32 & _subnet_mask ))" -ne "$_subnet_base_u32" ] || \
+     [ "$(( _dhcp_end_u32 & _subnet_mask ))" -ne "$_subnet_base_u32" ]; then
+    printf '{"error":"DHCP range must be within LAN subnet"}\n'; exit 1
+  fi
+
+  if [ "$_dhcp_start_u32" -gt "$_dhcp_end_u32" ]; then
+    printf '{"error":"Invalid DHCP range: dhcp_start is greater than dhcp_end"}\n'; exit 1
+  fi
+fi
+
 DHCP_ENABLED_JSON="false"
 if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
   DHCP_ENABLED_JSON="true"
