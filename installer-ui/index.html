@@ -135,27 +135,22 @@
         <h2 class="text-3xl font-bold text-white mb-3">Welcome to DayShield</h2>
         <p class="text-gray-400 text-lg mb-2">Firewall - Installer</p>
         <p class="text-gray-500 text-sm mb-8 max-w-md">
-          This installer will guide you through setting up DayShield Firewall on your hardware.
+          This installer will guide you through setting up the DayShield OSTree-based immutable system on your hardware.
+          The OS image is managed as read-only deployments while persistent settings and logs are stored separately.
           All operations are performed locally - no internet connection is required.
         </p>
-        <div class="grid gap-3 sm:grid-cols-3 w-full max-w-3xl mb-6">
+        <div class="grid gap-3 sm:grid-cols-2 w-full max-w-2xl mb-6">
           <button @click="installMode = 'fresh'"
                   class="text-left rounded-xl border-2 p-4 transition-all"
                   :class="installMode === 'fresh' ? 'border-shield-500 bg-shield-900/40' : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
-            <p class="font-semibold text-white">Fresh Install</p>
-            <p class="text-sm text-gray-400 mt-1">Create a new DayShield primary/secondary appliance layout on the selected disk.</p>
-          </button>
-          <button @click="installMode = 'upgrade'"
-                  class="text-left rounded-xl border-2 p-4 transition-all"
-                  :class="installMode === 'upgrade' ? 'border-shield-500 bg-shield-900/40' : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
-            <p class="font-semibold text-white">Upgrade from ISO</p>
-            <p class="text-sm text-gray-400 mt-1">Stage this ISO rootfs into the inactive primary/secondary slot, keep configuration, then reboot into a health-checked trial boot.</p>
+            <p class="font-semibold text-white">Install DayShield OS</p>
+            <p class="text-sm text-gray-400 mt-1">Create a new OSTree-ready immutable system layout on the selected disk.</p>
           </button>
           <button @click="installMode = 'reinstall'"
                   class="text-left rounded-xl border-2 p-4 transition-all"
                   :class="installMode === 'reinstall' ? 'border-red-500 bg-red-900/30' : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
-            <p class="font-semibold text-white">Reinstall from ISO</p>
-            <p class="text-sm text-gray-400 mt-1">Erase the selected disk and create a fresh DayShield primary/secondary appliance layout.</p>
+            <p class="font-semibold text-white">Reinstall DayShield OS</p>
+            <p class="text-sm text-gray-400 mt-1">Erase the selected disk and recreate the immutable DayShield OSTree layout.</p>
           </button>
         </div>
         <div x-show="showConnectHelp" class="bg-blue-900/30 border border-blue-700 rounded-lg p-4 text-left text-sm text-blue-200 max-w-xl w-full mb-6">
@@ -171,11 +166,11 @@
           </p>
           <button @click="loadAccessInfo()" class="btn-secondary mt-3 text-xs">Refresh</button>
         </div>
-        <div x-show="!isUpgradeMode() && selectedDiskInfo() && selectedDiskInfo().has_data" class="bg-yellow-900/40 border border-yellow-700 rounded-lg p-4 text-left text-sm text-yellow-300 max-w-md w-full mb-8">
+        <div x-show="selectedDiskInfo() && selectedDiskInfo().has_data" class="bg-yellow-900/40 border border-yellow-700 rounded-lg p-4 text-left text-sm text-yellow-300 max-w-md w-full mb-8">
           <p class="font-semibold mb-1">⚠ Warning</p>
           <p>This process will <strong>erase all data</strong> on the selected disk. Ensure you have backed up any important data before continuing.</p>
         </div>
-        <div x-show="!isUpgradeMode() && selectedDiskInfo() && !selectedDiskInfo().has_data" class="bg-blue-900/30 border border-blue-700 rounded-lg p-4 text-left text-sm text-blue-200 max-w-md w-full mb-8">
+        <div x-show="selectedDiskInfo() && !selectedDiskInfo().has_data" class="bg-blue-900/30 border border-blue-700 rounded-lg p-4 text-left text-sm text-blue-200 max-w-md w-full mb-8">
           <p class="font-semibold mb-1">Notice</p>
           <p>The selected disk appears to be blank. It will be prepared for installation.</p>
         </div>
@@ -184,8 +179,8 @@
 
       <!-- ── Step 1: Disk Selection ──────────────────────────── -->
       <div x-show="step === 1" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
-        <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Select Existing Appliance Disk' : (isFreshInstallMode() ? 'Select Fresh Install Disk' : 'Select Reinstall Disk')"></h2>
-        <p class="text-gray-400 text-sm mb-6" x-text="isUpgradeMode() ? 'Choose the existing DayShield disk with DS_PRIMARY, DS_SECONDARY, and DAYSHIELD_BOOT labels. The inactive slot will be replaced; configuration is preserved.' : (selectedDiskInfo() ? (selectedDiskInfo().has_data ? 'Choose the disk where DayShield will be installed. Existing partitions or data on the selected disk will be erased.' : 'Choose the disk where DayShield will be installed. The selected disk appears to be blank.') : 'Choose the disk where DayShield will be installed.')"></p>
+        <h2 class="text-2xl font-bold text-white mb-2" x-text="isFreshInstallMode() ? 'Select Install Disk' : 'Select Reinstall Disk'"></h2>
+        <p class="text-gray-400 text-sm mb-6" x-text="selectedDiskInfo() ? (selectedDiskInfo().has_data ? 'Choose the disk where DayShield will be installed. Existing partitions or data on the selected disk will be erased.' : 'Choose the disk where DayShield will be installed. The selected disk appears to be blank.') : 'Choose the disk where DayShield will be installed.'"></p>
 
         <div x-show="loadingDisks" class="flex items-center gap-3 text-gray-400 py-8">
           <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -203,13 +198,10 @@
         <div x-show="!loadingDisks && disks.length > 0" class="space-y-3">
           <template x-for="disk in disks" :key="disk.name">
             <button @click="selectedDisk = disk.name"
-                    :disabled="isUpgradeMode() && !disk.has_ab_install"
-                    class="w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left"
-                    :class="(isUpgradeMode() && !disk.has_ab_install)
-                      ? 'border-gray-800 bg-gray-900/50 opacity-50 cursor-not-allowed'
-                      : selectedDisk === disk.name
-                      ? 'border-shield-500 bg-shield-900/40'
-                      : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
+                  class="w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left"
+                  :class="selectedDisk === disk.name
+                    ? 'border-shield-500 bg-shield-900/40'
+                    : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
               <svg class="w-8 h-8 shrink-0"
                    :class="selectedDisk === disk.name ? 'text-shield-400' : 'text-gray-500'"
                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -219,8 +211,6 @@
               <div class="flex-1">
                 <p class="font-semibold text-white" x-text="'/dev/' + disk.name"></p>
                 <p class="text-sm text-gray-400" x-text="disk.size + '  -  ' + disk.type"></p>
-                <p x-show="isUpgradeMode() && disk.has_ab_install" class="text-xs text-green-400 mt-1">DayShield primary/secondary installation detected</p>
-                <p x-show="isUpgradeMode() && !disk.has_ab_install" class="text-xs text-gray-500 mt-1">No DayShield primary/secondary layout detected</p>
               </div>
               <span x-show="selectedDisk === disk.name"
                     class="text-shield-400">
@@ -246,32 +236,11 @@
 
       <!-- ── Step 2: Partition Summary ──────────────────────── -->
       <div x-show="step === 2" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
-        <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Upgrade Summary' : (isFreshInstallMode() ? 'Fresh Install Summary' : 'Reinstall Summary')"></h2>
+        <h2 class="text-2xl font-bold text-white mb-2" x-text="isFreshInstallMode() ? 'Install Summary' : 'Reinstall Summary'"></h2>
         <p class="text-gray-400 text-sm mb-6"
-            x-text="isUpgradeMode() ? 'The ISO rootfs will be staged to the inactive primary/secondary slot on /dev/' + selectedDisk + '. Existing configuration and appliance state are copied from the active slot.' : 'The following partition layout will be created on /dev/' + selectedDisk + '.'"></p>
+            x-text="'The following OSTree-ready immutable partition layout will be created on /dev/' + selectedDisk + '.'"></p>
 
-        <div x-show="isUpgradeMode()" class="space-y-3 mb-6">
-          <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
-            <div class="w-10 h-10 rounded-lg bg-shield-900/50 flex items-center justify-center shrink-0">
-              <span class="text-shield-400 font-bold text-xs">P/S</span>
-            </div>
-            <div>
-              <p class="font-semibold text-white">Inactive-slot rootfs upgrade</p>
-              <p class="text-sm text-gray-400">No repartitioning. The active slot remains available for automatic rollback.</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
-            <div class="w-10 h-10 rounded-lg bg-green-900/50 flex items-center justify-center shrink-0">
-              <span class="text-green-400 font-bold text-xs">CFG</span>
-            </div>
-            <div>
-              <p class="font-semibold text-white">Configuration preserved</p>
-              <p class="text-sm text-gray-400">DayShield config, network settings, SSH, WireGuard, Cloudflared, and local state are copied into the new slot.</p>
-            </div>
-          </div>
-        </div>
-
-        <div x-show="!isUpgradeMode()" class="space-y-3 mb-6">
+        <div class="space-y-3 mb-6">
           <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
             <div class="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center shrink-0">
               <span class="text-gray-300 font-bold text-[10px]">BIOS</span>
@@ -301,38 +270,34 @@
           </div>
           <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
             <div class="w-10 h-10 rounded-lg bg-green-900/50 flex items-center justify-center shrink-0">
-              <span class="text-green-400 font-bold text-xs">P</span>
+              <span class="text-green-400 font-bold text-xs">SYS</span>
             </div>
             <div>
-              <p class="font-semibold text-white">Primary Rootfs Slot</p>
-              <p class="text-sm text-gray-400">ext4 - primary after install - <span x-text="partitionPath(4)"></span></p>
+              <p class="font-semibold text-white">Immutable System Root</p>
+              <p class="text-sm text-gray-400">ext4 - OSTree sysroot - <span x-text="partitionPath(4)"></span></p>
             </div>
           </div>
           <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
             <div class="w-10 h-10 rounded-lg bg-purple-900/50 flex items-center justify-center shrink-0">
-              <span class="text-purple-300 font-bold text-xs">S</span>
+              <span class="text-purple-300 font-bold text-xs">VAR</span>
             </div>
             <div>
-              <p class="font-semibold text-white">Secondary Rootfs Slot</p>
-              <p class="text-sm text-gray-400">ext4 - secondary update slot - <span x-text="partitionPath(5)"></span></p>
+              <p class="font-semibold text-white">Persistent State Partition</p>
+              <p class="text-sm text-gray-400">ext4 - mounted at /var for config and runtime state - <span x-text="partitionPath(5)"></span></p>
             </div>
           </div>
         </div>
 
-        <div x-show="!isUpgradeMode()" class="bg-red-900/30 border border-red-700 rounded-lg p-4 text-sm text-red-300">
+        <div class="bg-red-900/30 border border-red-700 rounded-lg p-4 text-sm text-red-300">
           <p class="font-semibold mb-1">⚠ This will destroy all data on <span x-text="'/dev/' + selectedDisk"></span></p>
           <p>Confirm you want to proceed by clicking <strong>Next</strong>.</p>
-        </div>
-        <div x-show="isUpgradeMode()" class="bg-blue-900/30 border border-blue-700 rounded-lg p-4 text-sm text-blue-200">
-          <p class="font-semibold mb-1">A reboot is required after staging.</p>
-          <p>The appliance will trial-boot the upgraded slot, confirm health after startup, and keep the previous slot for rollback.</p>
         </div>
       </div>
 
       <!-- ── Step 3: Installation Progress ──────────────────── -->
       <div x-show="step === 3" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
-        <h2 class="text-2xl font-bold text-white mb-2" x-text="isUpgradeMode() ? 'Staging ISO Upgrade' : (isFreshInstallMode() ? 'Installing Fresh DayShield Firewall' : 'Reinstalling DayShield Firewall')"></h2>
-        <p class="text-gray-400 text-sm mb-8" x-text="isUpgradeMode() ? 'Please wait while the ISO rootfs is written to the inactive slot. Do not power off your machine.' : 'Please wait while the system is installed. Do not power off your machine.'"></p>
+        <h2 class="text-2xl font-bold text-white mb-2" x-text="isFreshInstallMode() ? 'Installing DayShield Firewall' : 'Reinstalling DayShield Firewall'"></h2>
+        <p class="text-gray-400 text-sm mb-8">Please wait while the immutable OS image is installed. Do not power off your machine.</p>
 
         <div class="space-y-4 mb-8">
           <template x-for="task in installTasks" :key="task.id">
@@ -564,12 +529,12 @@
             <span class="summary-value" x-text="partitionPath(3) + '  (ext4, 1 GiB)'"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">Primary Rootfs Slot</span>
-            <span class="summary-value" x-text="partitionPath(4) + '  (DS_PRIMARY)'"></span>
+            <span class="summary-label">Immutable System Root</span>
+            <span class="summary-value" x-text="partitionPath(4) + '  (DAYSHIELD_SYSROOT)'"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">Secondary Rootfs Slot</span>
-            <span class="summary-value" x-text="partitionPath(5) + '  (DS_SECONDARY)'"></span>
+            <span class="summary-label">Persistent State Partition</span>
+            <span class="summary-value" x-text="partitionPath(5) + '  (DAYSHIELD_STATE, mounted at /var)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">Bootloader</span>
@@ -640,9 +605,9 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
           </svg>
         </div>
-        <h2 class="text-3xl font-bold text-white mb-3" x-text="isUpgradeMode() ? 'Upgrade Staged' : 'Installation Complete'"></h2>
-        <p class="text-gray-400 mb-2" x-text="isUpgradeMode() ? 'The ISO rootfs has been staged on /dev/' + selectedDisk + ' and the next boot will trial the upgraded slot.' : 'DayShield Firewall has been successfully installed on /dev/' + selectedDisk + '.'"></p>
-        <p class="text-gray-500 text-sm mb-8" x-text="isUpgradeMode() ? 'Remove the installation media now, then reboot. The appliance will confirm health after startup or roll back to the previous slot.' : 'Remove the installation media now, then click Reboot. A countdown will begin before reboot.'"></p>
+        <h2 class="text-3xl font-bold text-white mb-3">Installation Complete</h2>
+        <p class="text-gray-400 mb-2" x-text="'DayShield Firewall has been successfully installed on /dev/' + selectedDisk + '.'"></p>
+        <p class="text-gray-500 text-sm mb-8">Remove the installation media now, then click Reboot. The installed system uses immutable OSTree deployments with persistent state on /var.</p>
         <button @click="reboot()"
                 :disabled="rebootPending"
                 class="btn-primary btn-lg gap-2">

@@ -1,5 +1,5 @@
 #!/bin/sh
-# install-bootloader.sh - Install GRUB and DayShield Primary/Secondary boot entries.
+# install-bootloader.sh - Install GRUB for the DayShield OSTree system layout.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -45,6 +45,19 @@ query_param() {
   printf '%s' "$1" | tr '&' '\n' | sed -n "s/^$2=//p" | head -n1
 }
 
+find_latest_boot_file() {
+  dir="$1"
+  prefix="$2"
+  exact="$3"
+  if [ -e "${dir}/${exact}" ]; then
+    printf '%s' "${dir}/${exact}"
+    return 0
+  fi
+  candidate=$(find "$dir" -maxdepth 1 -name "${prefix}*" 2>/dev/null | sort | tail -n1)
+  [ -n "$candidate" ] || return 1
+  printf '%s' "$candidate"
+}
+
 DISK=""
 if [ -n "${QUERY_STRING:-}" ]; then
   DISK=$(decode_urlencoded "$(query_param "$QUERY_STRING" disk)")
@@ -57,7 +70,7 @@ DEV="/dev/${DISK}"
 TARGET="/mnt/target"
 [ -b "$DEV" ] || json_error "Device not found: $DEV"
 [ -d "${TARGET}/etc" ] || json_error "Target root not found at $TARGET - run install-rootfs first"
-mountpoint -q "${TARGET}/boot" 2>/dev/null || json_error "Shared boot partition is not mounted at ${TARGET}/boot"
+mountpoint -q "${TARGET}/boot" 2>/dev/null || json_error "Boot partition is not mounted at ${TARGET}/boot"
 
 cleanup() {
   for fs in run dev/pts dev sys proc; do
@@ -116,75 +129,32 @@ elif [ -f "${TARGET}/boot/efi/EFI/dayshield/grubx64.efi" ]; then
   cp "${TARGET}/boot/efi/EFI/dayshield/grubx64.efi" "${TARGET}/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null || true
 fi
 
-find_latest_boot_file() {
-  dir="$1"
-  prefix="$2"
-  exact="$3"
-  if [ -e "${dir}/${exact}" ]; then
-    printf '%s' "${dir}/${exact}"
-    return 0
-  fi
-  candidate=$(find "$dir" -maxdepth 1 -name "${prefix}*" 2>/dev/null | sort | tail -n1)
-  [ -n "$candidate" ] || return 1
-  printf '%s' "$candidate"
-}
-
-install_slot_boot_files() {
-  slot="$1"
-  source_boot="$2"
-  dest="${TARGET}/boot/dayshield/slot-${slot}"
-  kernel=$(find_latest_boot_file "$source_boot" "vmlinuz-" "vmlinuz") || return 1
-  initrd=$(find_latest_boot_file "$source_boot" "initrd.img-" "initrd.img") || return 1
-  mkdir -p "$dest"
-  cp "$kernel" "${dest}/vmlinuz"
-  cp "$initrd" "${dest}/initrd.img"
-}
-
-label_device() {
-  blkid -L "$1" 2>/dev/null || true
-}
-
-root_slot_device() {
-  dev=$(label_device "$1")
-  [ -n "$dev" ] || dev=$(label_device "$2")
-  printf '%s' "$dev"
-}
-
-if ! find_latest_boot_file "${TARGET}/boot" "vmlinuz-" "vmlinuz" >/dev/null 2>&1; then
-  chroot "$TARGET" update-initramfs -c -k all >>"$LOG" 2>&1 || true
-fi
-
 BOOT_DEV=$(blkid -L DAYSHIELD_BOOT 2>/dev/null || true)
-ROOT_A_DEV=$(root_slot_device DS_PRIMARY DAYSHIELD_ROOT_A)
-ROOT_B_DEV=$(root_slot_device DS_SECONDARY DAYSHIELD_ROOT_B)
-[ -n "$BOOT_DEV" ] && [ -n "$ROOT_A_DEV" ] && [ -n "$ROOT_B_DEV" ] || json_error "Primary/Secondary rootfs labels were not found"
+ROOT_DEV=$(blkid -L DAYSHIELD_SYSROOT 2>/dev/null || true)
+[ -n "$BOOT_DEV" ] && [ -n "$ROOT_DEV" ] || json_error "Required boot/sysroot labels were not found"
 
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || true)
-ROOT_A_UUID=$(blkid -s UUID -o value "$ROOT_A_DEV" 2>/dev/null || true)
-ROOT_B_UUID=$(blkid -s UUID -o value "$ROOT_B_DEV" 2>/dev/null || true)
-[ -n "$BOOT_UUID" ] && [ -n "$ROOT_A_UUID" ] && [ -n "$ROOT_B_UUID" ] || json_error "Failed to resolve Primary/Secondary rootfs UUIDs"
+ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || true)
+[ -n "$BOOT_UUID" ] && [ -n "$ROOT_UUID" ] || json_error "Failed to resolve boot/sysroot UUIDs"
 
-install_slot_boot_files "a" "${TARGET}/boot" || json_error "Could not copy primary slot kernel/initrd into shared boot"
-mkdir -p "${TARGET}/boot/dayshield/slot-b" "${TARGET}/etc/grub.d"
+KERNEL_FILE=$(find_latest_boot_file "${TARGET}/boot" "vmlinuz-" "vmlinuz") || json_error "Could not find kernel in ${TARGET}/boot"
+INITRD_FILE=$(find_latest_boot_file "${TARGET}/boot" "initrd.img-" "initrd.img") || json_error "Could not find initrd in ${TARGET}/boot"
+KERNEL_NAME=$(basename "$KERNEL_FILE")
+INITRD_NAME=$(basename "$INITRD_FILE")
 
-cat > "${TARGET}/etc/grub.d/09_dayshield_ab" <<EOF
+mkdir -p "${TARGET}/etc/grub.d"
+cat > "${TARGET}/etc/grub.d/09_dayshield_ostree" <<EOF
 #!/bin/sh
 set -e
 cat <<'GRUB_EOF'
-menuentry 'DayShield Primary System' --id 'dayshield-a' {
+menuentry 'DayShield System' --id 'dayshield' {
     search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
-    linux /dayshield/slot-a/vmlinuz root=UUID=${ROOT_A_UUID} ro quiet splash
-    initrd /dayshield/slot-a/initrd.img
-}
-
-menuentry 'DayShield Secondary System' --id 'dayshield-b' {
-    search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
-    linux /dayshield/slot-b/vmlinuz root=UUID=${ROOT_B_UUID} ro quiet splash
-    initrd /dayshield/slot-b/initrd.img
+    linux /${KERNEL_NAME} root=UUID=${ROOT_UUID} ro quiet splash
+    initrd /${INITRD_NAME}
 }
 GRUB_EOF
 EOF
-chmod 755 "${TARGET}/etc/grub.d/09_dayshield_ab"
+chmod 755 "${TARGET}/etc/grub.d/09_dayshield_ostree"
 
 cat > "${TARGET}/etc/default/grub" <<'EOF'
 GRUB_DEFAULT=saved
@@ -209,24 +179,18 @@ if [ ! -s "${TARGET}/boot/grub/grub.cfg" ]; then
 set default=saved
 set timeout=5
 
-menuentry 'DayShield Primary System' --id 'dayshield-a' {
+menuentry 'DayShield System' --id 'dayshield' {
     search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
-    linux /dayshield/slot-a/vmlinuz root=UUID=${ROOT_A_UUID} ro quiet splash
-    initrd /dayshield/slot-a/initrd.img
-}
-
-menuentry 'DayShield Secondary System' --id 'dayshield-b' {
-    search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
-    linux /dayshield/slot-b/vmlinuz root=UUID=${ROOT_B_UUID} ro quiet splash
-    initrd /dayshield/slot-b/initrd.img
+    linux /${KERNEL_NAME} root=UUID=${ROOT_UUID} ro quiet splash
+    initrd /${INITRD_NAME}
 }
 EOF
 fi
 
 if chroot "$TARGET" command -v grub-set-default >/dev/null 2>&1; then
-  chroot "$TARGET" grub-set-default dayshield-a >>"$LOG" 2>&1 || true
+  chroot "$TARGET" grub-set-default dayshield >>"$LOG" 2>&1 || true
 elif command -v grub-editenv >/dev/null 2>&1; then
-  grub-editenv "${TARGET}/boot/grub/grubenv" set saved_entry=dayshield-a >>"$LOG" 2>&1 || true
+  grub-editenv "${TARGET}/boot/grub/grubenv" set saved_entry=dayshield >>"$LOG" 2>&1 || true
 fi
 
 json_ok "$warning"

@@ -4,7 +4,7 @@ The installer UI provides an offline web-based setup experience for DayShield li
 
 ## Purpose
 
-This repository contains the static installer frontend and the shell-backed API scripts used during installation and upgrade.
+This repository contains the static installer frontend and shell-backed API scripts used during installation and initial system configuration.
 
 - `index.html`, `app.js`, `styles.css` — browser UI
 - `api/*.sh` — installer actions exposed as CGI endpoints
@@ -34,3 +34,4 @@ make iso \
 - The installer UI is intentionally unauthenticated. It is designed for one-time local setup on a trusted network or directly from the installation console.
 - The live installer exposes a temporary web UI on `http://<live-ip>:8443/`.
 - There is no separate build step for this repo; the UI is shipped as static assets.
+- The installer writes an OSTree-ready immutable layout: `DAYSHIELD_SYSROOT` for system content and `DAYSHIELD_STATE` mounted at `/var` for persistent state.

@@ -16,7 +16,6 @@ function installer() {
     /* ── State ─────────────────────────────────────────────── */
     step: 0,
     installMode: 'fresh',
-    upgradeResult: null,
 
     // Disk selection
     disks: [],
@@ -75,9 +74,9 @@ function installer() {
 
     // Installation task list (step 3)
     installTasks: [
-      { id: 'partition',  label: 'Creating partitions',         status: 'pending' },
-      { id: 'format',     label: 'Formatting partitions',       status: 'pending' },
-      { id: 'rootfs',     label: 'Installing root filesystem',  status: 'pending' },
+      { id: 'partition',  label: 'Creating OSTree disk layout', status: 'pending' },
+      { id: 'format',     label: 'Formatting system partitions', status: 'pending' },
+      { id: 'rootfs',     label: 'Installing immutable system image', status: 'pending' },
       { id: 'bootloader', label: 'Installing bootloader',       status: 'pending' },
     ],
 
@@ -115,10 +114,6 @@ function installer() {
 
     selectedDiskInfo() {
       return this.disks.find(d => d.name === this.selectedDisk) || null;
-    },
-
-    isUpgradeMode() {
-      return this.installMode === 'upgrade';
     },
 
     isFreshInstallMode() {
@@ -256,8 +251,7 @@ function installer() {
       switch (this.step) {
         case 0: return !!this.installMode;
         case 1: {
-          const disk = this.selectedDiskInfo();
-          return !!this.selectedDisk && (!this.isUpgradeMode() || !!(disk && disk.has_ab_install));
+          return !!this.selectedDisk;
         }
         case 2: return !!this.selectedDisk;
         case 3: return false; // automated - driven by runInstallPipeline()
@@ -299,7 +293,7 @@ function installer() {
     nextLabel() {
       switch (this.step) {
         case 0: return 'Start';
-        case 2: return this.isUpgradeMode() ? 'Stage Upgrade' : (this.isFreshInstallMode() ? 'Fresh Install' : 'Reinstall');
+        case 2: return this.isFreshInstallMode() ? 'Install DayShield OS' : 'Reinstall';
         case 5: return 'Install';
         default: return 'Next';
       }
@@ -486,55 +480,42 @@ function installer() {
     },
 
     resetInstallTasks() {
-      this.installTasks = this.isUpgradeMode()
-        ? [
-            { id: 'upgrade', label: 'Staging ISO rootfs into inactive slot', status: 'pending' },
-          ]
-        : [
-            { id: 'partition',  label: 'Creating Primary/Secondary partitions', status: 'pending' },
-            { id: 'format',     label: 'Formatting partitions',       status: 'pending' },
-            { id: 'rootfs',     label: 'Installing root filesystem',  status: 'pending' },
-            { id: 'bootloader', label: 'Installing Primary/Secondary bootloader', status: 'pending' },
-          ];
+      this.installTasks = [
+        { id: 'partition',  label: 'Creating OSTree disk layout', status: 'pending' },
+        { id: 'format',     label: 'Formatting system partitions', status: 'pending' },
+        { id: 'rootfs',     label: 'Installing immutable system image', status: 'pending' },
+        { id: 'bootloader', label: 'Installing bootloader', status: 'pending' },
+      ];
     },
 
     /* ── Installation pipeline ──────────────────────────────── */
     async runInstallPipeline() {
       this.installing = true;
       this.progress = 0;
-      this.upgradeResult = null;
       this.resetInstallTasks();
 
-      const steps = this.isUpgradeMode()
-        ? [
-            {
-              id: 'upgrade',
-              fn: async () => { this.upgradeResult = await this.runUpgradeRootfs(); },
-              weight: 100,
-            },
-          ]
-        : [
-            {
-              id: 'partition',
-              fn: () => this.runPartition(),
-              weight: 10,
-            },
-            {
-              id: 'format',
-              fn: () => this.runFormat(),
-              weight: 10,
-            },
-            {
-              id: 'rootfs',
-              fn: () => this.runInstallRootfs(),
-              weight: 60,
-            },
-            {
-              id: 'bootloader',
-              fn: () => this.runInstallBootloader(),
-              weight: 20,
-            },
-          ];
+      const steps = [
+        {
+          id: 'partition',
+          fn: () => this.runPartition(),
+          weight: 10,
+        },
+        {
+          id: 'format',
+          fn: () => this.runFormat(),
+          weight: 10,
+        },
+        {
+          id: 'rootfs',
+          fn: () => this.runInstallRootfs(),
+          weight: 60,
+        },
+        {
+          id: 'bootloader',
+          fn: () => this.runInstallBootloader(),
+          weight: 20,
+        },
+      ];
 
       let accumulated = 0;
       for (const s of steps) {
@@ -555,12 +536,8 @@ function installer() {
       this.progress = 100;
       this.installing = false;
       await this.$nextTick();
-      if (this.isUpgradeMode()) {
-        this.step = 7;
-      } else {
-        this.step = 4;
-        this.loadIfaces();
-      }
+      this.step = 4;
+      this.loadIfaces();
     },
 
     /* ── Configuration pipeline ─────────────────────────────── */
@@ -619,10 +596,6 @@ function installer() {
 
     async runInstallBootloader() {
       return this.callApi('install-bootloader', { disk: this.selectedDisk });
-    },
-
-    async runUpgradeRootfs() {
-      return this.callApi('upgrade-rootfs', { disk: this.selectedDisk });
     },
 
     async runConfigureSystem() {
