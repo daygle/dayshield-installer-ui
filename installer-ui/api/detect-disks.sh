@@ -1,6 +1,6 @@
 #!/bin/sh
 # detect-disks.sh - List available block disks (excludes loop/rom/ram)
-# Output: JSON  { "ok": true, "disks": [ { "name": "sda", "size": "256G", "type": "disk" }, ... ] }
+# Output: JSON  { "ok": true, "disks": [ { "name": "sda", "size": "256G", "type": "disk", "has_data": true }, ... ] }
 #
 # Called by the installer web UI via busybox httpd CGI.
 # Must be POSIX-compliant.
@@ -16,16 +16,6 @@ if ! command -v lsblk >/dev/null 2>&1; then
   printf '{"error":"lsblk not found"}\n'
   exit 1
 fi
-
-label_device() {
-  blkid -L "$1" 2>/dev/null || true
-}
-
-root_slot_device() {
-  dev=$(label_device "$1")
-  [ -n "$dev" ] || dev=$(label_device "$2")
-  printf '%s' "$dev"
-}
 
 # Collect disk list, exclude loop/rom/ram devices
 DISKS_JSON=""
@@ -58,24 +48,7 @@ while IFS= read -r line; do
     has_data=true
   fi
 
-  has_ab_install=false
-  if command -v blkid >/dev/null 2>&1; then
-    root_a=$(root_slot_device DS_PRIMARY DAYSHIELD_ROOT_A)
-    root_b=$(root_slot_device DS_SECONDARY DAYSHIELD_ROOT_B)
-    boot_part=$(blkid -L DAYSHIELD_BOOT 2>/dev/null || true)
-    if [ -n "$root_a" ] && [ -n "$root_b" ] && [ -n "$boot_part" ]; then
-      ab_matches=0
-      for dev in "$root_a" "$root_b" "$boot_part"; do
-        pkname=$(lsblk -ndo PKNAME "$dev" 2>/dev/null || true)
-        if [ "$pkname" = "$name" ]; then
-          ab_matches=$((ab_matches + 1))
-        fi
-      done
-      [ "$ab_matches" -eq 3 ] && has_ab_install=true
-    fi
-  fi
-
-  entry="{\"name\":\"${name_safe}\",\"size\":\"${size_safe}\",\"type\":\"${type_safe}\",\"has_data\":${has_data},\"has_ab_install\":${has_ab_install}}"
+  entry="{\"name\":\"${name_safe}\",\"size\":\"${size_safe}\",\"type\":\"${type_safe}\",\"has_data\":${has_data}}"
 
   if [ "$FIRST" -eq 1 ]; then
     DISKS_JSON="${entry}"

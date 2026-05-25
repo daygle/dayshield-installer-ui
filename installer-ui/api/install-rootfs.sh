@@ -1,5 +1,5 @@
 #!/bin/sh
-# install-rootfs.sh - Mount target partitions and extract rootfs.tar.zst.
+# install-rootfs.sh - Mount target partitions and extract rootfs.tar.zst for OSTree layout.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -15,6 +15,7 @@ cleanup() {
   if [ "$status" -ne 0 ]; then
     umount /mnt/target/boot/efi 2>/dev/null || true
     umount /mnt/target/boot 2>/dev/null || true
+    umount /mnt/target/var 2>/dev/null || true
     umount /mnt/target 2>/dev/null || true
   fi
   if [ -n "$ISO_SCAN_MOUNT" ]; then
@@ -115,7 +116,8 @@ printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$' || reply_error "Invalid disk nam
 EFI_PART=$(part_node 2)
 BOOT_PART=$(part_node 3)
 ROOT_PART=$(part_node 4)
-for part in "$EFI_PART" "$BOOT_PART" "$ROOT_PART"; do
+STATE_PART=$(part_node 5)
+for part in "$EFI_PART" "$BOOT_PART" "$ROOT_PART" "$STATE_PART"; do
   [ -b "$part" ] || reply_error "Partition not found: $part"
 done
 
@@ -129,6 +131,8 @@ mkdir -p "$TARGET/boot"
 mount "$BOOT_PART" "$TARGET/boot" 2>/dev/null || reply_error "Failed to mount boot partition $BOOT_PART"
 mkdir -p "$TARGET/boot/efi"
 mount "$EFI_PART" "$TARGET/boot/efi" 2>/dev/null || reply_error "Failed to mount EFI partition $EFI_PART"
+mkdir -p "$TARGET/var"
+mount "$STATE_PART" "$TARGET/var" 2>/dev/null || reply_error "Failed to mount persistent state partition $STATE_PART"
 
 extract_rootfs "$ROOTFS" "$TARGET" >/tmp/dayshield-install-rootfs.log 2>&1 || reply_error "Failed to extract rootfs archive"
 

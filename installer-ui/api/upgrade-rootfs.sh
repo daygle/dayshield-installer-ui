@@ -346,7 +346,6 @@ mount "$INACTIVE_DEV" "$TARGET" 2>/dev/null || reply_error "Failed to mount inac
 extract_rootfs "$ROOTFS" "$TARGET" >>"$LOG" 2>&1 || reply_error "Failed to extract ISO rootfs into inactive slot"
 copy_persistent_state
 mkdir -p "${TARGET}/etc/dayshield"
-printf '%s\n' "$INACTIVE_SLOT" > "${TARGET}/etc/dayshield/rootfs-slot"
 write_fstab
 write_iso_marker
 

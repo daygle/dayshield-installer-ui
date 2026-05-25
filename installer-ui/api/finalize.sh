@@ -128,6 +128,14 @@ if mountpoint -q "$BOOT_MP" 2>/dev/null; then
   }
 fi
 
+VAR_MP="${TARGET}/var"
+if mountpoint -q "$VAR_MP" 2>/dev/null; then
+  umount "$VAR_MP" 2>/dev/null || {
+    printf '{"error":"Failed to unmount state partition"}\n'
+    exit 1
+  }
+fi
+
 if mountpoint -q "$TARGET" 2>/dev/null; then
   umount "$TARGET" 2>/dev/null || {
     printf '{"error":"Failed to unmount root partition"}\n'
