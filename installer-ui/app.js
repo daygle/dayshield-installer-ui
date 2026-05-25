@@ -58,6 +58,9 @@ function installer() {
     installing: false,
     error: null,
 
+    // Version
+    version: '',
+
     // Step definitions
     steps: [
       { label: 'Welcome' },
@@ -94,6 +97,7 @@ function installer() {
       // Load disks eagerly so step 1 is ready when user arrives
       this.loadDisks();
       this.loadAccessInfo();
+      this.loadVersion();
     },
 
     /* ── Navigation helpers ─────────────────────────────────── */
@@ -463,6 +467,15 @@ function installer() {
         this.accessUrls = [];
       } finally {
         this.loadingAccess = false;
+      }
+    },
+
+    async loadVersion() {
+      try {
+        const data = await this.callApi('version');
+        this.version = data.version || '';
+      } catch (_) {
+        this.version = '';
       }
     },
 
