@@ -398,6 +398,7 @@
                    x-model="wanIface"
                    placeholder="eth0"
                    class="input-field"
+                   aria-label="WAN Interface (manual entry)"
                    autocomplete="off" spellcheck="false" />
             <select id="wanIface" x-show="!loadingIfaces && ifaces.length > 0" x-model="wanIface" class="input-field">
               <option value="" disabled>Select WAN interface</option>
@@ -441,6 +442,7 @@
                    x-model="iface"
                    placeholder="eth1"
                    class="input-field"
+                   aria-label="LAN Interface (manual entry)"
                    autocomplete="off" spellcheck="false" />
             <select id="iface" x-show="!loadingIfaces && ifaces.length > 0" x-model="iface" class="input-field">
               <option value="" disabled>Select an interface</option>
