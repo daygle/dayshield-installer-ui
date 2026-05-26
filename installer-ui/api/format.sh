@@ -64,7 +64,7 @@ done
 
 err=$(mkfs.fat -F32 -n "DS_EFI" "$EFI_PART" 2>&1) || json_error "Failed to format EFI partition $EFI_PART: $err"
 err=$(mkfs.ext4 -F -L "DAYSHIELD_BOOT" -O "^64bit,metadata_csum" -m 1 "$BOOT_PART" 2>&1) || json_error "Failed to format boot partition $BOOT_PART: $err"
-err=$(mkfs.ext4 -F -L "DAYSHIELD_SYSROOT" -O "^64bit,metadata_csum" -m 1 "$ROOT_A_PART" 2>&1) || json_error "Failed to format immutable system root $ROOT_A_PART: $err"
+err=$(mkfs.ext4 -F -L "DAYSHIELD_ROOT" -O "^64bit,metadata_csum" -m 1 "$ROOT_A_PART" 2>&1) || json_error "Failed to format immutable system root $ROOT_A_PART: $err"
 err=$(mkfs.ext4 -F -L "DAYSHIELD_STATE" -O "^64bit,metadata_csum" -m 1 "$ROOT_B_PART" 2>&1) || json_error "Failed to format persistent state partition $ROOT_B_PART: $err"
 
 printf '{"ok":true}\n'

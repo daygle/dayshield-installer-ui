@@ -152,7 +152,7 @@ find_dev_by_label() {
 }
 
 BOOT_DEV=$(find_dev_by_label "DAYSHIELD_BOOT")
-ROOT_DEV=$(find_dev_by_label "DAYSHIELD_SYSROOT")
+ROOT_DEV=$(find_dev_by_label "DAYSHIELD_ROOT")
 [ -n "$BOOT_DEV" ] && [ -n "$ROOT_DEV" ] || json_error "Required boot/sysroot labels were not found"
 
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || true)
