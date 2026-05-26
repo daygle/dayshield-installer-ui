@@ -14,15 +14,23 @@ json_error() {
 }
 
 decode_urlencoded() {
-  local s="$1" out="" hex
-  while [ -n "$s" ]; do
-    case "$s" in
-      +*) out="${out} "; s="${s#?}" ;;
-      %??*) hex="${s#%}"; hex="${hex%${hex#??}}"; s="${s#%??}"; out="${out}$(printf '\\x%s' "$hex")" ;;
-      *) out="${out}${s%${s#?}}"; s="${s#?}" ;;
-    esac
-  done
-  printf '%s' "$out"
+  _raw=$1
+  printf '%s' "$_raw" | awk '
+    BEGIN {
+      for (i = 0; i <= 255; i++) {
+        dec[sprintf("%02x", i)] = sprintf("%c", i)
+        dec[sprintf("%02X", i)] = sprintf("%c", i)
+      }
+    }
+    {
+      gsub(/\+/, " ")
+      out = ""
+      while (match($0, /%[0-9A-Fa-f][0-9A-Fa-f]/)) {
+        out = out substr($0, 1, RSTART - 1) dec[substr($0, RSTART + 1, 2)]
+        $0  = substr($0, RSTART + RLENGTH)
+      }
+      printf "%s%s", out, $0
+    }'
 }
 
 query_param() {

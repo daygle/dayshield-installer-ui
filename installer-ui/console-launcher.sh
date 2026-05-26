@@ -25,14 +25,12 @@ if supports_color; then
   C_BOLD="$(printf '\033[1m')"
   C_CYAN="$(printf '\033[36m')"
   C_GREEN="$(printf '\033[32m')"
-  C_YELLOW="$(printf '\033[33m')"
   C_RED="$(printf '\033[31m')"
 else
   C_RESET=''
   C_BOLD=''
   C_CYAN=''
   C_GREEN=''
-  C_YELLOW=''
   C_RED=''
 fi
 
@@ -136,8 +134,6 @@ fi
 if ! is_listening_8443; then
   start_emergency_httpd || true
 fi
-
-URL="http://127.0.0.1:8443/"
 
 while true; do
   LAN4_ADDRS="$({ ip -o -4 addr show scope global 2>/dev/null || true; } | awk '{print $2 " " $4}')"

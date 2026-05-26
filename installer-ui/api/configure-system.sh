@@ -249,6 +249,20 @@ _pwlen=$(printf '%s' "$PASSWORD" | wc -c)
 if [ "$_pwlen" -gt 128 ]; then
   printf '{"error":"Password must be 128 characters or fewer"}\n'; exit 1
 fi
+if [ "$_pwlen" -lt 8 ]; then
+  printf '{"error":"Password must be at least 8 characters"}\n'; exit 1
+fi
+case "$PASSWORD" in
+  *[A-Z]*) ;;
+  *) printf '{"error":"Password must contain at least one uppercase letter"}\n'; exit 1 ;;
+esac
+case "$PASSWORD" in
+  *[a-z]*) ;;
+  *) printf '{"error":"Password must contain at least one lowercase letter"}\n'; exit 1 ;;
+esac
+if ! printf '%s' "$PASSWORD" | grep -q '[[:digit:][:punct:]_]'; then
+  printf '{"error":"Password must contain at least one digit, punctuation/symbol, or underscore"}\n'; exit 1
+fi
 [ -n "$WAN_TYPE" ] || WAN_TYPE="dhcp"
 if [ "$WAN_TYPE" != "dhcp" ] && [ "$WAN_TYPE" != "pppoe" ]; then
   printf '{"error":"Invalid wan_type: expected dhcp or pppoe"}\n'; exit 1

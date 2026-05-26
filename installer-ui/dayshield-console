@@ -191,8 +191,8 @@ validate_password() {
     *[a-z]*) ;;
     *) printf 'Password must contain at least one lowercase letter.\n' >/dev/tty; return 1 ;;
   esac
-  if ! printf '%s' "$p" | grep -q '[^a-zA-Z]'; then
-    printf 'Password must contain at least one digit or special character.\n' >/dev/tty
+  if ! printf '%s' "$p" | grep -q '[[:digit:][:punct:]_]'; then
+    printf 'Password must contain at least one digit, punctuation/symbol, or underscore.\n' >/dev/tty
     return 1
   fi
   return 0

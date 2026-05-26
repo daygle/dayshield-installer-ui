@@ -286,7 +286,7 @@ function installer() {
       if (p.length < 8) return '';
       if (!/[A-Z]/.test(p)) return 'Password must contain at least one uppercase letter.';
       if (!/[a-z]/.test(p)) return 'Password must contain at least one lowercase letter.';
-      if (!/[^a-zA-Z]/.test(p)) return 'Password must contain at least one digit or special character.';
+      if (!/[0-9!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/.test(p)) return 'Password must contain at least one digit, punctuation/symbol, or underscore.';
       return '';
     },
 

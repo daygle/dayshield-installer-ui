@@ -389,7 +389,21 @@
           <div>
             <label for="wanIface" class="block text-sm font-medium text-gray-300 mb-1">WAN Interface</label>
             <div x-show="loadingIfaces" class="text-sm text-gray-500">Detecting interfaces…</div>
-            <select id="wanIface" x-show="!loadingIfaces" x-model="wanIface" class="input-field">
+            <div x-show="!loadingIfaces && ifaces.length === 0" class="text-xs text-yellow-300 mb-2">
+              No interfaces were detected automatically. Enter the WAN interface name manually.
+            </div>
+            <label x-show="!loadingIfaces && ifaces.length === 0" for="wanIfaceManual" class="block text-xs font-medium text-gray-400 mb-1">
+              WAN Interface (manual)
+            </label>
+            <input x-show="!loadingIfaces && ifaces.length === 0"
+                   id="wanIfaceManual"
+                   type="text"
+                   x-model="wanIface"
+                   placeholder="eth0"
+                   class="input-field"
+                   aria-label="WAN Interface (manual entry)"
+                   autocomplete="off" spellcheck="false" />
+            <select id="wanIface" x-show="!loadingIfaces && ifaces.length > 0" x-model="wanIface" class="input-field">
               <option value="" disabled>Select WAN interface</option>
               <template x-for="i in ifaces" :key="'wan-' + i">
                 <option :value="i" x-text="i"></option>
@@ -422,7 +436,21 @@
           <div>
             <label for="iface" class="block text-sm font-medium text-gray-300 mb-1">LAN Interface</label>
             <div x-show="loadingIfaces" class="text-sm text-gray-500">Detecting interfaces…</div>
-            <select id="iface" x-show="!loadingIfaces" x-model="iface" class="input-field">
+            <div x-show="!loadingIfaces && ifaces.length === 0" class="text-xs text-yellow-300 mb-2">
+              No interfaces were detected automatically. Enter the LAN interface name manually.
+            </div>
+            <label x-show="!loadingIfaces && ifaces.length === 0" for="ifaceManual" class="block text-xs font-medium text-gray-400 mb-1">
+              LAN Interface (manual)
+            </label>
+            <input x-show="!loadingIfaces && ifaces.length === 0"
+                   id="ifaceManual"
+                   type="text"
+                   x-model="iface"
+                   placeholder="eth1"
+                   class="input-field"
+                   aria-label="LAN Interface (manual entry)"
+                   autocomplete="off" spellcheck="false" />
+            <select id="iface" x-show="!loadingIfaces && ifaces.length > 0" x-model="iface" class="input-field">
               <option value="" disabled>Select an interface</option>
               <template x-for="i in ifaces" :key="'lan-' + i">
                 <option :value="i" x-text="i"></option>
