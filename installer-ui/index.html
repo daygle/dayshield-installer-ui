@@ -135,22 +135,22 @@
         <h2 class="text-3xl font-bold text-white mb-3">Welcome to DayShield</h2>
         <p class="text-gray-400 text-lg mb-2">Firewall - Installer</p>
         <p class="text-gray-500 text-sm mb-8 max-w-md">
-          This installer will guide you through setting up the DayShield OSTree-based immutable system on your hardware.
-          The OS image is managed as read-only deployments while persistent settings and logs are stored separately.
-          All operations are performed locally - no internet connection is required.
+          This installer will walk you through setting up DayShield on your hardware.
+          The operating system is installed safely, while your settings and logs are stored separately.
+          All work is done locally, so no internet connection is needed.
         </p>
         <div class="grid gap-3 sm:grid-cols-2 w-full max-w-2xl mb-6">
           <button @click="installMode = 'fresh'"
                   class="text-left rounded-xl border-2 p-4 transition-all"
                   :class="installMode === 'fresh' ? 'border-shield-500 bg-shield-900/40' : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
             <p class="font-semibold text-white">Install DayShield OS</p>
-            <p class="text-sm text-gray-400 mt-1">Create a new OSTree-ready immutable system layout on the selected disk.</p>
+            <p class="text-sm text-gray-400 mt-1">Set up DayShield on the selected disk with a clean system layout.</p>
           </button>
           <button @click="installMode = 'reinstall'"
                   class="text-left rounded-xl border-2 p-4 transition-all"
                   :class="installMode === 'reinstall' ? 'border-red-500 bg-red-900/30' : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
             <p class="font-semibold text-white">Reinstall DayShield OS</p>
-            <p class="text-sm text-gray-400 mt-1">Erase the selected disk and recreate the immutable DayShield OSTree layout.</p>
+            <p class="text-sm text-gray-400 mt-1">Erase the selected disk and set up DayShield again from scratch.</p>
           </button>
         </div>
         <div x-show="showConnectHelp" class="bg-blue-900/30 border border-blue-700 rounded-lg p-4 text-left text-sm text-blue-200 max-w-xl w-full mb-6">
@@ -238,7 +238,7 @@
       <div x-show="step === 2" x-transition class="flex-1 flex flex-col max-w-2xl mx-auto w-full">
         <h2 class="text-2xl font-bold text-white mb-2" x-text="isFreshInstallMode() ? 'Install Summary' : 'Reinstall Summary'"></h2>
         <p class="text-gray-400 text-sm mb-6"
-            x-text="'The following OSTree-ready immutable partition layout will be created on /dev/' + selectedDisk + '.'"></p>
+            x-text="'The following partition layout will be created on /dev/' + selectedDisk + '.'"></p>
 
         <div class="space-y-3 mb-6">
           <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
@@ -274,7 +274,7 @@
             </div>
             <div>
               <p class="font-semibold text-white">Immutable System Root</p>
-              <p class="text-sm text-gray-400">ext4 - OSTree sysroot - <span x-text="partitionPath(4)"></span></p>
+              <p class="text-sm text-gray-400">ext4 - system root partition - <span x-text="partitionPath(4)"></span></p>
             </div>
           </div>
           <div class="flex items-center gap-4 bg-gray-900 border border-gray-700 rounded-xl p-4">
@@ -607,7 +607,7 @@
         </div>
         <h2 class="text-3xl font-bold text-white mb-3">Installation Complete</h2>
         <p class="text-gray-400 mb-2" x-text="'DayShield Firewall has been successfully installed on /dev/' + selectedDisk + '.'"></p>
-        <p class="text-gray-500 text-sm mb-8">Remove the installation media now, then click Reboot. The installed system uses immutable OSTree deployments with persistent state on /var.</p>
+        <p class="text-gray-500 text-sm mb-8">Remove the installation media now, then click Reboot. The installed system uses immutable deployments with persistent state on /var.</p>
         <button @click="reboot()"
                 :disabled="rebootPending"
                 class="btn-primary btn-lg gap-2">
