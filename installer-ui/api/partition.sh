@@ -57,6 +57,8 @@ command -v parted >/dev/null 2>&1 || json_error "parted not found"
 
 wipefs -a "$DEV" >/dev/null 2>&1 || true
 
+# Partitions: BIOS boot (1-2MiB), EFI (2-514MiB), BOOT (514MiB-1538MiB),
+# SYSROOT (1538MiB-80%) for the immutable sysroot, STATE (80%-100%) for persistent /var.
 parted_err=$(parted -s "$DEV" \
   mklabel gpt \
   mkpart "BIOS" 1MiB 2MiB \
@@ -64,7 +66,6 @@ parted_err=$(parted -s "$DEV" \
   mkpart "EFI" fat32 2MiB 514MiB \
   set 2 esp on \
   mkpart "BOOT" ext4 514MiB 1538MiB \
-  # Keep the immutable sysroot larger while reserving the final 20% of disk space for persistent /var state.
   mkpart "SYSROOT" ext4 1538MiB 80% \
   mkpart "STATE" ext4 80% 100% 2>&1) || json_error "parted failed: $parted_err"
 
