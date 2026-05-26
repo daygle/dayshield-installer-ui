@@ -392,6 +392,9 @@
             <div x-show="!loadingIfaces && ifaces.length === 0" class="text-xs text-yellow-300 mb-2">
               No interfaces were detected automatically. Enter the WAN interface name manually.
             </div>
+            <label x-show="!loadingIfaces && ifaces.length === 0" for="wanIfaceManual" class="block text-xs font-medium text-gray-400 mb-1">
+              WAN Interface (manual)
+            </label>
             <input x-show="!loadingIfaces && ifaces.length === 0"
                    id="wanIfaceManual"
                    type="text"
@@ -436,6 +439,9 @@
             <div x-show="!loadingIfaces && ifaces.length === 0" class="text-xs text-yellow-300 mb-2">
               No interfaces were detected automatically. Enter the LAN interface name manually.
             </div>
+            <label x-show="!loadingIfaces && ifaces.length === 0" for="ifaceManual" class="block text-xs font-medium text-gray-400 mb-1">
+              LAN Interface (manual)
+            </label>
             <input x-show="!loadingIfaces && ifaces.length === 0"
                    id="ifaceManual"
                    type="text"
