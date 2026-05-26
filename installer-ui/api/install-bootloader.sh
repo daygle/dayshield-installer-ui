@@ -137,8 +137,22 @@ elif [ -f "${TARGET}/boot/efi/EFI/dayshield/grubx64.efi" ]; then
   cp "${TARGET}/boot/efi/EFI/dayshield/grubx64.efi" "${TARGET}/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null || true
 fi
 
-BOOT_DEV=$(blkid -L DAYSHIELD_BOOT 2>/dev/null || true)
-ROOT_DEV=$(blkid -L DAYSHIELD_SYSROOT 2>/dev/null || true)
+# Force blkid to re-probe devices (bypasses stale cache; needed in live environments)
+blkid -c /dev/null >/dev/null 2>&1 || true
+
+find_dev_by_label() {
+  _label="$1"
+  # util-linux blkid: blkid -L <label>
+  _dev=$(blkid -L "$_label" 2>/dev/null || true)
+  # BusyBox / older blkid: blkid -t LABEL=<label> -o device
+  [ -n "$_dev" ] || _dev=$(blkid -t LABEL="$_label" -o device 2>/dev/null | head -n1 || true)
+  # Last-resort: parse plain blkid output
+  [ -n "$_dev" ] || _dev=$(blkid 2>/dev/null | grep "LABEL=\"$_label\"" | sed 's/:.*//' | head -n1 || true)
+  printf '%s' "$_dev"
+}
+
+BOOT_DEV=$(find_dev_by_label "DAYSHIELD_BOOT")
+ROOT_DEV=$(find_dev_by_label "DAYSHIELD_SYSROOT")
 [ -n "$BOOT_DEV" ] && [ -n "$ROOT_DEV" ] || json_error "Required boot/sysroot labels were not found"
 
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || true)
