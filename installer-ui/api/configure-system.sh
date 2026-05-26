@@ -260,8 +260,8 @@ case "$PASSWORD" in
   *[a-z]*) ;;
   *) printf '{"error":"Password must contain at least one lowercase letter"}\n'; exit 1 ;;
 esac
-if ! printf '%s' "$PASSWORD" | grep -q '[[:digit:][:punct:]]'; then
-  printf '{"error":"Password must contain at least one digit or punctuation/symbol character"}\n'; exit 1
+if ! printf '%s' "$PASSWORD" | grep -q '[[:digit:][:punct:]_]'; then
+  printf '{"error":"Password must contain at least one digit, punctuation/symbol, or underscore"}\n'; exit 1
 fi
 [ -n "$WAN_TYPE" ] || WAN_TYPE="dhcp"
 if [ "$WAN_TYPE" != "dhcp" ] && [ "$WAN_TYPE" != "pppoe" ]; then
