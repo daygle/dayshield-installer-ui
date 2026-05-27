@@ -76,7 +76,7 @@ function installer() {
     installTasks: [
       { id: 'partition',  label: 'Creating OSTree disk layout', status: 'pending' },
       { id: 'format',     label: 'Formatting system partitions', status: 'pending' },
-      { id: 'rootfs',     label: 'Installing immutable system image', status: 'pending' },
+      { id: 'rootfs',     label: 'Installing system image', status: 'pending' },
       { id: 'bootloader', label: 'Installing bootloader',       status: 'pending' },
     ],
 
@@ -483,7 +483,7 @@ function installer() {
       this.installTasks = [
         { id: 'partition',  label: 'Creating OSTree disk layout', status: 'pending' },
         { id: 'format',     label: 'Formatting system partitions', status: 'pending' },
-        { id: 'rootfs',     label: 'Installing immutable system image', status: 'pending' },
+        { id: 'rootfs',     label: 'Installing system image', status: 'pending' },
         { id: 'bootloader', label: 'Installing bootloader', status: 'pending' },
       ];
     },

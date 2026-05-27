@@ -635,7 +635,7 @@
         </div>
         <h2 class="text-3xl font-bold text-white mb-3">Installation Complete</h2>
         <p class="text-gray-400 mb-2" x-text="'DayShield Firewall has been successfully installed on /dev/' + selectedDisk + '.'"></p>
-        <p class="text-gray-500 text-sm mb-8">Remove the installation media now, then click Reboot. The installed system uses immutable deployments with persistent state on /var.</p>
+        <p class="text-gray-500 text-sm mb-8">Your DayShield system is ready. Remove the installer media, then click Reboot to start using your new system. Your settings and data will be saved automatically.</p>
         <button @click="reboot()"
                 :disabled="rebootPending"
                 class="btn-primary btn-lg gap-2">
@@ -643,7 +643,7 @@
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
-          <span x-text="rebootPending ? 'Rebooting in ' + rebootCountdown + '…' : 'Remove media and reboot'"></span>
+          <span x-text="rebootPending ? 'Rebooting in ' + rebootCountdown + '…' : 'Reboot'"></span>
         </button>
         <p x-show="rebootPending" class="text-gray-400 text-sm mt-4">Rebooting in <span x-text="rebootCountdown"></span> seconds…</p>
       </div>
