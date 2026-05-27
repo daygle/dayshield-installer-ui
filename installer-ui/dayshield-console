@@ -291,8 +291,8 @@ detect_disks() {
 
 choose_install_mode() {
   print_header 'Install Mode'
-  printf '  1) Install DayShield OS   - create a fresh immutable OSTree layout\n'
-  printf '  2) Reinstall DayShield OS - erase and recreate the immutable OSTree layout\n'
+  printf '  1) Install DayShield OS   - create a fresh system layout\n'
+  printf '  2) Reinstall DayShield OS - erase and recreate the system layout\n'
   while :; do
     answer=$(read_prompt 'Select mode [1-2] (Q to quit): ' yes)
     case "$answer" in
@@ -514,7 +514,7 @@ main() {
   else
     printf 'Mode: Install DayShield OS\n'
   fi
-  printf 'The selected disk will be repartitioned into an immutable OSTree layout.\n'
+  printf 'The selected disk will be repartitioned into a new system layout.\n'
   printf 'All existing data on the selected disk will be erased.\n'
   if ! confirm 'Continue with disk partitioning?' no; then
     printf 'Installation aborted.\n'
