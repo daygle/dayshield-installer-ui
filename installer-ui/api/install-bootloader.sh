@@ -169,7 +169,7 @@ cat > "${TARGET}/etc/grub.d/09_dayshield_ostree" <<EOF
 #!/bin/sh
 set -e
 cat <<'GRUB_EOF'
-menuentry 'DayShield System' --id 'dayshield' {
+menuentry 'DayShield Firewall' --id 'dayshield' {
     search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
     linux /${KERNEL_NAME} root=UUID=${ROOT_UUID} ro quiet splash
     initrd /${INITRD_NAME}
@@ -201,7 +201,7 @@ if [ ! -s "${TARGET}/boot/grub/grub.cfg" ]; then
 set default=saved
 set timeout=5
 
-menuentry 'DayShield System' --id 'dayshield' {
+menuentry 'DayShield Firewall' --id 'dayshield' {
     search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
     linux /${KERNEL_NAME} root=UUID=${ROOT_UUID} ro quiet splash
     initrd /${INITRD_NAME}
