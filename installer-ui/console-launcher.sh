@@ -236,7 +236,7 @@ while true; do
 
         printf "\n  Command-line installer exited.\n"
       else
-        printf "\n  ERROR: missing /installer-ui/dayshield-console\n"
+        printf "\n  ERROR: Console installer not found.\n"
       fi
 
       printf "  Press Enter to return to menu..."

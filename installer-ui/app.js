@@ -64,17 +64,17 @@ function installer() {
     steps: [
       { label: 'Welcome' },
       { label: 'Disk Selection' },
-      { label: 'Partitioning' },
+      { label: 'Disk Plan' },
       { label: 'Installation' },
       { label: 'Configuration' },
       { label: 'Summary' },
-      { label: 'Configuring' },
+      { label: 'Applying' },
       { label: 'Complete' },
     ],
 
     // Installation task list (step 3)
     installTasks: [
-      { id: 'partition',  label: 'Creating OSTree disk layout', status: 'pending' },
+      { id: 'partition',  label: 'Setting up disk layout', status: 'pending' },
       { id: 'format',     label: 'Formatting system partitions', status: 'pending' },
       { id: 'rootfs',     label: 'Installing system image', status: 'pending' },
       { id: 'bootloader', label: 'Installing bootloader',       status: 'pending' },
@@ -83,7 +83,7 @@ function installer() {
     // Configuration task list (step 6)
     configTasks: [
       { id: 'configure', label: 'Applying system settings',     status: 'pending' },
-      { id: 'finalize',  label: 'Finalizing and unmounting',    status: 'pending' },
+      { id: 'finalize',  label: 'Finalizing installation',       status: 'pending' },
     ],
 
     /* ── Lifecycle ──────────────────────────────────────────── */
@@ -293,7 +293,7 @@ function installer() {
     nextLabel() {
       switch (this.step) {
         case 0: return 'Start';
-        case 2: return this.isFreshInstallMode() ? 'Install DayShield OS' : 'Reinstall';
+        case 2: return this.isFreshInstallMode() ? 'Install DayShield OS' : 'Reinstall DayShield OS';
         case 5: return 'Install';
         default: return 'Next';
       }
@@ -481,7 +481,7 @@ function installer() {
 
     resetInstallTasks() {
       this.installTasks = [
-        { id: 'partition',  label: 'Creating OSTree disk layout', status: 'pending' },
+        { id: 'partition',  label: 'Setting up disk layout', status: 'pending' },
         { id: 'format',     label: 'Formatting system partitions', status: 'pending' },
         { id: 'rootfs',     label: 'Installing system image', status: 'pending' },
         { id: 'bootloader', label: 'Installing bootloader', status: 'pending' },

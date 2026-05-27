@@ -497,7 +497,7 @@ run_config_pipeline() {
 
 main() {
   print_header 'DayShield Console Installer' 34
-  printf 'This wizard guides you through the same install steps as the web UI.\n'
+  printf 'This wizard guides you through installing DayShield Firewall step by step.\n'
   printf 'Press Q at any prompt to quit.\n'
   printf '\n'
   if ! confirm 'Continue with console installer?' yes; then
@@ -564,7 +564,7 @@ main() {
   printf 'Hostname: %s\n' "$hostname"
   printf 'LAN interface: %s\n' "$lan_iface"
   printf 'LAN address: %s/%s\n' "$lan_ip" "$lan_prefix"
-  printf 'LAN DHCP: %s\n' "$lan_dhcp_enable"
+  printf 'LAN DHCP: %s\n' "$([ "$lan_dhcp_enable" = yes ] && printf 'enabled' || printf 'disabled')"
   [ "$lan_dhcp_enable" = yes ] && printf 'DHCP range: %s - %s\n' "$dhcp_start" "$dhcp_end"
   printf 'WAN interface: %s\n' "$wan_iface"
   printf 'WAN type: %s\n' "$wan_type"
@@ -587,7 +587,7 @@ main() {
   fi
 
   print_header 'Complete'
-  printf 'Installation complete on /dev/%s.\n' "$selected_disk"
+  printf 'DayShield Firewall installed successfully on /dev/%s.\n' "$selected_disk"
   if confirm 'Reboot now?' yes; then
     countdown_reboot 10
   fi
