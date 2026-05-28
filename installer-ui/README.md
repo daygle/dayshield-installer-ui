@@ -34,4 +34,4 @@ make iso \
 - The installer UI is intentionally unauthenticated. It is designed for one-time local setup on a trusted network or directly from the installation console.
 - The live installer exposes a temporary web UI on `http://<live-ip>:8443/`.
 - There is no separate build step for this repo; the UI is shipped as static assets.
-- The installer writes an OSTree-ready immutable layout: `DAYSHIELD_SYSROOT` for system content and `DAYSHIELD_STATE` mounted at `/var` for persistent state.
+- The installer writes an immutable disk layout: `DAYSHIELD_SYSROOT` for system content and `DAYSHIELD_STATE` mounted at `/var` for persistent state.

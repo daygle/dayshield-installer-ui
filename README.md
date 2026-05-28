@@ -15,7 +15,7 @@ The installer UI provides an offline setup experience for DayShield live images.
 - **Reinstall DayShield Firewall** to overwrite an existing target system with a fresh immutable layout.
 - **Local web-based configuration** and console wizard on the live image.
 
-The installer now prepares an OSTree-oriented disk layout:
+The installer prepares an immutable disk layout:
 
 - immutable system root (`DAYSHIELD_SYSROOT`)
 - persistent state partition mounted at `/var` (`DAYSHIELD_STATE`)
