@@ -18,7 +18,7 @@ set -eu
 printf 'Content-Type: application/json\r\n'
 printf '\r\n'
 
-# ── Parse CGI query string ────────────────────────────────────────
+# ── Parse CGI query string ──────────────────────────────────
 parse_param() {
   # Usage: parse_param QUERY_STRING key
   _raw=$(printf '%s' "$1" | tr '&' '\n' | grep "^${2}=" | head -n1 | sed "s/^${2}=//")
@@ -229,7 +229,7 @@ if [ "$WAN_IFACE" = "$IFACE" ]; then
   printf '{"error":"WAN and LAN interfaces must be different"}\n'; exit 1
 fi
 
-# ── Validate ──────────────────────────────────────────────────────
+# ── Validate ────────────────────────────────────────────
 if [ -z "$DISK" ]; then
   printf '{"error":"Missing required parameter: disk"}\n'; exit 1
 fi
@@ -340,7 +340,7 @@ if [ ! -d "${TARGET}/etc" ]; then
   printf '{"error":"Target root not found at %s"}\n' "$TARGET"; exit 1
 fi
 
-# ── Set hostname ──────────────────────────────────────────────────
+# ── Set hostname ──────────────────────────────────────────
 printf '%s\n' "$HOSTNAME" > "${TARGET}/etc/hostname"
 
 # /etc/hosts
@@ -350,7 +350,7 @@ cat > "${TARGET}/etc/hosts" << EOF
 ::1         localhost ip6-localhost ip6-loopback
 EOF
 
-# ── Set admin (root) password ─────────────────────────────────────
+# ── Set admin (root) password ─────────────────────────────────
 # Prefer using the installed system's chpasswd for the target rootfs when available.
 # Lock any existing root password before applying the new one.
 if chroot "$TARGET" command -v passwd >/dev/null 2>&1; then
@@ -488,7 +488,7 @@ else
   printf '{"error":"Failed to initialise DayShield admin credentials - dayshield-core init-admin failed"}\n'; exit 1
 fi
 
-# ── Configure LAN interface ───────────────────────────────────────
+# ── Configure LAN interface ───────────────────────────────────
 NETDIR="${TARGET}/etc/dayshield"
 mkdir -p "$NETDIR"
 
@@ -506,8 +506,8 @@ LAN_DHCP_START=${DHCP_START}
 LAN_DHCP_END=${DHCP_END}
 EOF
 
-# Write nftables interface mapping to /var (OSTree-immune) so rootfs upgrades
-# never clobber user interface assignments. /etc/dayshield/config/nft-ifaces.conf
+# Write nftables interface mapping to /var so rootfs updates never clobber
+# user interface assignments. /etc/dayshield/config/nft-ifaces.conf
 # is a symlink to this file (created during rootfs build).
 mkdir -p "${TARGET}/var/lib/dayshield/config"
 NFT_WAN_IF="${WAN_IFACE}"
@@ -846,7 +846,7 @@ EOF
 
 chmod 600 "${CORE_CFG_DIR}/config.json"
 
-# ── Update Suricata WAN interface ─────────────────────────────────
+# ── Update Suricata WAN interface ─────────────────────────────
 SURICATA_YAML="${TARGET}/etc/suricata/suricata.yaml"
 if [ -f "$SURICATA_YAML" ]; then
   # Only replace lines with exactly two leading spaces (af-packet / pcap
@@ -947,18 +947,18 @@ fi
 # Remove any stale masks that could block console logins.
 rm -f "${TARGET}/etc/systemd/system/getty@tty1.service" 2>/dev/null || true
 
-# ── Write /etc/fstab ──────────────────────────────────────────────
+# ── Write /etc/fstab ──────────────────────────────────────────
 DISK_NODE="$DISK"
 EFI_PART="/dev/${DISK_NODE}2"
 BOOT_PART="/dev/${DISK_NODE}3"
 ROOT_PART="/dev/${DISK_NODE}4"
-STATE_PART="/dev/${DISK_NODE}5"
+STATE_PART="/dev/${DISK_NODE}6"
 case "$DISK_NODE" in
   nvme*|mmcblk*)
     EFI_PART="/dev/${DISK_NODE}p2"
     BOOT_PART="/dev/${DISK_NODE}p3"
     ROOT_PART="/dev/${DISK_NODE}p4"
-    STATE_PART="/dev/${DISK_NODE}p5"
+    STATE_PART="/dev/${DISK_NODE}p6"
     ;;
 esac
 

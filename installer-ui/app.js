@@ -74,7 +74,7 @@ function installer() {
 
     // Installation task list (step 3)
     installTasks: [
-      { id: 'partition',  label: 'Setting up disk layout', status: 'pending' },
+      { id: 'partition',  label: 'Preparing system partitions', status: 'pending' },
       { id: 'format',     label: 'Formatting system partitions', status: 'pending' },
       { id: 'rootfs',     label: 'Installing system image', status: 'pending' },
       { id: 'bootloader', label: 'Installing bootloader',       status: 'pending' },
@@ -481,7 +481,7 @@ function installer() {
 
     resetInstallTasks() {
       this.installTasks = [
-        { id: 'partition',  label: 'Setting up disk layout', status: 'pending' },
+        { id: 'partition',  label: 'Preparing system partitions', status: 'pending' },
         { id: 'format',     label: 'Formatting system partitions', status: 'pending' },
         { id: 'rootfs',     label: 'Installing system image', status: 'pending' },
         { id: 'bootloader', label: 'Installing bootloader', status: 'pending' },

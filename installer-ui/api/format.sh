@@ -1,5 +1,5 @@
 #!/bin/sh
-# format.sh - Format the DayShield OSTree partition layout.
+# format.sh - Format the DayShield RAUC partition layout.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -57,14 +57,16 @@ EFI_PART=$(part_node 2)
 BOOT_PART=$(part_node 3)
 ROOT_A_PART=$(part_node 4)
 ROOT_B_PART=$(part_node 5)
+STATE_PART=$(part_node 6)
 
-for part in "$EFI_PART" "$BOOT_PART" "$ROOT_A_PART" "$ROOT_B_PART"; do
+for part in "$EFI_PART" "$BOOT_PART" "$ROOT_A_PART" "$ROOT_B_PART" "$STATE_PART"; do
   [ -b "$part" ] || json_error "Partition not found: $part"
 done
 
 err=$(mkfs.fat -F32 -n "DS_EFI" "$EFI_PART" 2>&1) || json_error "Failed to format EFI partition $EFI_PART: $err"
 err=$(mkfs.ext4 -F -L "DAYSHIELD_BOOT" -O "^64bit,metadata_csum" -m 1 "$BOOT_PART" 2>&1) || json_error "Failed to format boot partition $BOOT_PART: $err"
-err=$(mkfs.ext4 -F -L "DAYSHIELD_ROOT" -O "^64bit,metadata_csum" -m 1 "$ROOT_A_PART" 2>&1) || json_error "Failed to format immutable system root $ROOT_A_PART: $err"
-err=$(mkfs.ext4 -F -L "DAYSHIELD_STATE" -O "^64bit,metadata_csum" -m 1 "$ROOT_B_PART" 2>&1) || json_error "Failed to format persistent state partition $ROOT_B_PART: $err"
+err=$(mkfs.ext4 -F -L "DS_ROOT_A" -O "^64bit,metadata_csum" -m 1 "$ROOT_A_PART" 2>&1) || json_error "Failed to format primary OS partition $ROOT_A_PART: $err"
+err=$(mkfs.ext4 -F -L "DS_ROOT_B" -O "^64bit,metadata_csum" -m 1 "$ROOT_B_PART" 2>&1) || json_error "Failed to format update partition $ROOT_B_PART: $err"
+err=$(mkfs.ext4 -F -L "DAYSHIELD_STATE" -O "^64bit,metadata_csum" -m 1 "$STATE_PART" 2>&1) || json_error "Failed to format persistent state partition $STATE_PART: $err"
 
 printf '{"ok":true}\n'
