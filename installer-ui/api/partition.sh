@@ -1,5 +1,5 @@
 #!/bin/sh
-# partition.sh - Create the DayShield OSTree GPT partition layout.
+# partition.sh - Create the DayShield RAUC GPT partition layout.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -58,7 +58,9 @@ command -v parted >/dev/null 2>&1 || json_error "parted not found"
 wipefs -a "$DEV" >/dev/null 2>&1 || true
 
 # Partitions: BIOS boot (1-2MiB), EFI (2-514MiB), BOOT (514MiB-1538MiB),
-# SYSROOT (1538MiB-80%) for the immutable sysroot, STATE (80%-100%) for persistent /var.
+# DS_ROOT_A (1538MiB-5634MiB, 4 GiB primary OS slot),
+# DS_ROOT_B (5634MiB-9730MiB, 4 GiB update slot for fail-safe updates),
+# STATE (9730MiB-100%) for persistent /var.
 parted_err=$(parted -s "$DEV" \
   mklabel gpt \
   mkpart "BIOS" 1MiB 2MiB \
@@ -66,8 +68,9 @@ parted_err=$(parted -s "$DEV" \
   mkpart "EFI" fat32 2MiB 514MiB \
   set 2 esp on \
   mkpart "BOOT" ext4 514MiB 1538MiB \
-  mkpart "SYSROOT" ext4 1538MiB 80% \
-  mkpart "STATE" ext4 80% 100% 2>&1) || json_error "parted failed: $parted_err"
+  mkpart "ROOT_A" ext4 1538MiB 5634MiB \
+  mkpart "ROOT_B" ext4 5634MiB 9730MiB \
+  mkpart "STATE" ext4 9730MiB 100% 2>&1) || json_error "parted failed: $parted_err"
 
 partprobe "$DEV" >/dev/null 2>&1 || true
 if command -v udevadm >/dev/null 2>&1; then
@@ -91,7 +94,7 @@ wait_part() {
   [ -b "$part" ]
 }
 
-for number in 2 3 4 5; do
+for number in 2 3 4 5 6; do
   part=$(part_node "$number")
   wait_part "$part" || json_error "Partition node did not appear after partitioning: $part"
 done

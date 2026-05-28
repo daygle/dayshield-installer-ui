@@ -1,5 +1,5 @@
 #!/bin/sh
-# install-rootfs.sh - Mount target partitions and extract rootfs.tar.zst for OSTree layout.
+# install-rootfs.sh - Mount target partitions and extract rootfs for RAUC A/B layout.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -123,9 +123,9 @@ printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$' || reply_error "Invalid disk nam
 
 EFI_PART=$(part_node 2)
 BOOT_PART=$(part_node 3)
-ROOT_PART=$(part_node 4)
-STATE_PART=$(part_node 5)
-for part in "$EFI_PART" "$BOOT_PART" "$ROOT_PART" "$STATE_PART"; do
+ROOT_A_PART=$(part_node 4)
+STATE_PART=$(part_node 6)
+for part in "$EFI_PART" "$BOOT_PART" "$ROOT_A_PART" "$STATE_PART"; do
   [ -b "$part" ] || reply_error "Partition not found: $part"
 done
 
@@ -134,22 +134,13 @@ ROOTFS=$(find_rootfs || true)
 
 TARGET="/mnt/target"
 mkdir -p "$TARGET"
-mount "$ROOT_PART" "$TARGET" 2>/dev/null || reply_error "Failed to mount $ROOT_PART on $TARGET"
+mount "$ROOT_A_PART" "$TARGET" 2>/dev/null || reply_error "Failed to mount $ROOT_A_PART on $TARGET"
 mkdir -p "$TARGET/boot"
 mount "$BOOT_PART" "$TARGET/boot" 2>/dev/null || reply_error "Failed to mount boot partition $BOOT_PART"
 mkdir -p "$TARGET/boot/efi"
 mount "$EFI_PART" "$TARGET/boot/efi" 2>/dev/null || reply_error "Failed to mount EFI partition $EFI_PART"
 mkdir -p "$TARGET/var"
 mount "$STATE_PART" "$TARGET/var" 2>/dev/null || reply_error "Failed to mount persistent state partition $STATE_PART"
-
-# Clear any stale OSTree deployments from previous failed attempts.
-# Deployment directories are marked immutable by OSTree, so the immutable
-# flag must be cleared before removal or the update service (which lacks
-# CAP_LINUX_IMMUTABLE) cannot clean them up on the next update attempt.
-if [ -d "${TARGET}/ostree/deploy" ]; then
-  chattr -R -i "${TARGET}/ostree/deploy" 2>/dev/null || true
-  rm -rf "${TARGET}/ostree/deploy"
-fi
 
 extract_rootfs "$ROOTFS" "$TARGET" >/tmp/dayshield-install-rootfs.log 2>&1 || reply_error "Failed to extract rootfs archive"
 
@@ -158,5 +149,11 @@ if [ -d "$DEFAULTS_DIR" ]; then
   mkdir -p "${TARGET}/etc/dayshield"
   cp -a "${DEFAULTS_DIR}/." "${TARGET}/etc/dayshield/"
 fi
+
+# Write RAUC initial state so dayshield-core knows the installed version
+RAUC_STATE_DIR="${TARGET}/var/lib/dayshield/rootfs-update"
+mkdir -p "$RAUC_STATE_DIR"
+INSTALL_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf 'unknown')
+printf '{"version":"initial","recordedAt":"%s"}\n' "$INSTALL_TS" > "${RAUC_STATE_DIR}/current.json"
 
 reply_ok

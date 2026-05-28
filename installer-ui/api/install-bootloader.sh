@@ -1,5 +1,5 @@
 #!/bin/sh
-# install-bootloader.sh - Install GRUB for the DayShield OSTree system layout.
+# install-bootloader.sh - Install GRUB for the DayShield RAUC system layout.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -142,22 +142,19 @@ blkid -c /dev/null >/dev/null 2>&1 || true
 
 find_dev_by_label() {
   _label="$1"
-  # util-linux blkid: blkid -L <label>
   _dev=$(blkid -L "$_label" 2>/dev/null || true)
-  # BusyBox / older blkid: blkid -t LABEL=<label> -o device
   [ -n "$_dev" ] || _dev=$(blkid -t LABEL="$_label" -o device 2>/dev/null | head -n1 || true)
-  # Last-resort: parse plain blkid output
   [ -n "$_dev" ] || _dev=$(blkid 2>/dev/null | grep "LABEL=\"$_label\"" | sed 's/:.*//' | head -n1 || true)
   printf '%s' "$_dev"
 }
 
 BOOT_DEV=$(find_dev_by_label "DAYSHIELD_BOOT")
-ROOT_DEV=$(find_dev_by_label "DAYSHIELD_ROOT")
-[ -n "$BOOT_DEV" ] && [ -n "$ROOT_DEV" ] || json_error "Required boot/sysroot labels were not found"
+ROOT_DEV=$(find_dev_by_label "DS_ROOT_A")
+[ -n "$BOOT_DEV" ] && [ -n "$ROOT_DEV" ] || json_error "Required boot/root labels were not found (DAYSHIELD_BOOT, DS_ROOT_A)"
 
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || true)
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || true)
-[ -n "$BOOT_UUID" ] && [ -n "$ROOT_UUID" ] || json_error "Failed to resolve boot/sysroot UUIDs"
+[ -n "$BOOT_UUID" ] && [ -n "$ROOT_UUID" ] || json_error "Failed to resolve boot/root UUIDs"
 
 KERNEL_FILE=$(find_latest_boot_file "${TARGET}/boot" "vmlinuz-" "vmlinuz") || json_error "Could not find kernel in ${TARGET}/boot"
 INITRD_FILE=$(find_latest_boot_file "${TARGET}/boot" "initrd.img-" "initrd.img") || json_error "Could not find initrd in ${TARGET}/boot"
@@ -165,7 +162,7 @@ KERNEL_NAME=$(basename "$KERNEL_FILE")
 INITRD_NAME=$(basename "$INITRD_FILE")
 
 mkdir -p "${TARGET}/etc/grub.d"
-cat > "${TARGET}/etc/grub.d/09_dayshield_ostree" <<EOF
+cat > "${TARGET}/etc/grub.d/09_dayshield" <<EOF
 #!/bin/sh
 set -e
 cat <<'GRUB_EOF'
@@ -176,7 +173,7 @@ menuentry 'DayShield Firewall' --id 'dayshield' {
 }
 GRUB_EOF
 EOF
-chmod 755 "${TARGET}/etc/grub.d/09_dayshield_ostree"
+chmod 755 "${TARGET}/etc/grub.d/09_dayshield"
 
 cat > "${TARGET}/etc/default/grub" <<'EOF'
 GRUB_DEFAULT=saved
