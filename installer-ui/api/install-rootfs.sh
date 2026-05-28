@@ -142,6 +142,15 @@ mount "$EFI_PART" "$TARGET/boot/efi" 2>/dev/null || reply_error "Failed to mount
 mkdir -p "$TARGET/var"
 mount "$STATE_PART" "$TARGET/var" 2>/dev/null || reply_error "Failed to mount persistent state partition $STATE_PART"
 
+# Clear any stale OSTree deployments from previous failed attempts.
+# Deployment directories are marked immutable by OSTree, so the immutable
+# flag must be cleared before removal or the update service (which lacks
+# CAP_LINUX_IMMUTABLE) cannot clean them up on the next update attempt.
+if [ -d "${TARGET}/ostree/deploy" ]; then
+  chattr -R -i "${TARGET}/ostree/deploy" 2>/dev/null || true
+  rm -rf "${TARGET}/ostree/deploy"
+fi
+
 extract_rootfs "$ROOTFS" "$TARGET" >/tmp/dayshield-install-rootfs.log 2>&1 || reply_error "Failed to extract rootfs archive"
 
 DEFAULTS_DIR="/run/installer/defaults"
