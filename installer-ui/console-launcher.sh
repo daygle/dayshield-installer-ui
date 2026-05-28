@@ -86,14 +86,6 @@ is_compact_mode() {
   return 1
 }
 
-status_backend_text() {
-  if is_listening_8443; then
-    printf '%sUP%s' "${C_GREEN}" "${C_RESET}"
-  else
-    printf '%sDOWN%s' "${C_RED}" "${C_RESET}"
-  fi
-}
-
 is_listening_8443() {
   if command -v ss >/dev/null 2>&1; then
     ss -lnt 2>/dev/null | grep -q ':8443 '
@@ -161,7 +153,7 @@ while true; do
 
   if [ "${COMPACT_UI}" -eq 1 ]; then
     printf "  Mode: web installer preferred; command-line fallback available.\n"
-    printf "  Backend 8443: %s\n\n" "$(status_backend_text)"
+    printf "\n"
   else
     printf "  Two installation paths are available:\n"
     printf "    %s1)%s Web Installer from another computer %s(recommended)%s\n" \
@@ -169,7 +161,7 @@ while true; do
     printf "    %s2)%s Command-Line Installer on this console\n\n" \
         "${C_BOLD}" "${C_RESET}"
     printf "  Web Installer runs on port 8443 and needs a JS-capable browser.\n"
-    printf "  Backend: %s\n\n" "$(status_backend_text)"
+    printf "\n"
   fi
 
   LAN4_COUNT="$(printf "%s\n" "$LAN4_ADDRS" | awk 'NF { count++ } END { print count + 0 }')"
