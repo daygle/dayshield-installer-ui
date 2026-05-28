@@ -506,13 +506,15 @@ LAN_DHCP_START=${DHCP_START}
 LAN_DHCP_END=${DHCP_END}
 EOF
 
-# Write nftables interface mapping used by /etc/nftables.conf.
-mkdir -p "${TARGET}/etc/dayshield/config"
+# Write nftables interface mapping to /var (OSTree-immune) so rootfs upgrades
+# never clobber user interface assignments. /etc/dayshield/config/nft-ifaces.conf
+# is a symlink to this file (created during rootfs build).
+mkdir -p "${TARGET}/var/lib/dayshield/config"
 NFT_WAN_IF="${WAN_IFACE}"
 if [ "$WAN_TYPE" = "pppoe" ]; then
   NFT_WAN_IF="ppp0"
 fi
-cat > "${TARGET}/etc/dayshield/config/nft-ifaces.conf" << EOF
+cat > "${TARGET}/var/lib/dayshield/config/nft-ifaces.conf" << EOF
 define WAN_IF = ${NFT_WAN_IF}
 define LAN_IF = ${IFACE}
 EOF
