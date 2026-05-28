@@ -291,19 +291,19 @@ detect_disks() {
 
 choose_install_mode() {
   print_header 'Install Mode'
-  printf '  1) Install DayShield OS   - create a fresh system layout\n'
-  printf '  2) Reinstall DayShield OS - erase and recreate the system layout\n'
+  printf '  1) Install DayShield Firewall   - create a fresh system layout\n'
+  printf '  2) Reinstall DayShield Firewall - erase and recreate the system layout\n'
   while :; do
     answer=$(read_prompt 'Select mode [1-2] (Q to quit): ' yes)
     case "$answer" in
       ''|1|install|Install|fresh|Fresh)
         install_mode=fresh
-        printf 'Selected: Install DayShield OS\n'
+        printf 'Selected: Install DayShield Firewall\n'
         return 0
         ;;
       2|reinstall|Reinstall|reinstall-os|Reinstall-OS)
         install_mode=reinstall
-        printf 'Selected: Reinstall DayShield OS\n'
+        printf 'Selected: Reinstall DayShield Firewall\n'
         return 0
         ;;
       *) printf 'Please enter 1 or 2.\n' ;;
@@ -510,9 +510,9 @@ main() {
 
   print_header 'Partitioning'
   if [ "$install_mode" = reinstall ]; then
-    printf 'Mode: Reinstall DayShield OS\n'
+    printf 'Mode: Reinstall DayShield Firewall\n'
   else
-    printf 'Mode: Install DayShield OS\n'
+    printf 'Mode: Install DayShield Firewall\n'
   fi
   printf 'The selected disk will be repartitioned into a new system layout.\n'
   printf 'All existing data on the selected disk will be erased.\n'

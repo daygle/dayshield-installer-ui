@@ -293,7 +293,7 @@ function installer() {
     nextLabel() {
       switch (this.step) {
         case 0: return 'Start';
-        case 2: return this.isFreshInstallMode() ? 'Install DayShield OS' : 'Reinstall DayShield OS';
+        case 2: return this.isFreshInstallMode() ? 'Install DayShield Firewall' : 'Reinstall DayShield Firewall';
         case 5: return 'Install';
         default: return 'Next';
       }

@@ -143,13 +143,13 @@
           <button @click="installMode = 'fresh'"
                   class="text-left rounded-xl border-2 p-4 transition-all"
                   :class="installMode === 'fresh' ? 'border-shield-500 bg-shield-900/40' : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
-            <p class="font-semibold text-white">Install DayShield OS</p>
+            <p class="font-semibold text-white">Install DayShield Firewall</p>
             <p class="text-sm text-gray-400 mt-1">Set up DayShield on the selected disk with a clean system layout.</p>
           </button>
           <button @click="installMode = 'reinstall'"
                   class="text-left rounded-xl border-2 p-4 transition-all"
                   :class="installMode === 'reinstall' ? 'border-red-500 bg-red-900/30' : 'border-gray-700 bg-gray-900 hover:border-gray-500'">
-            <p class="font-semibold text-white">Reinstall DayShield OS</p>
+            <p class="font-semibold text-white">Reinstall DayShield Firewall</p>
             <p class="text-sm text-gray-400 mt-1">Erase the selected disk and set up DayShield again from scratch.</p>
           </button>
         </div>
