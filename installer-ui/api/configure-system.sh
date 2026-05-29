@@ -797,6 +797,7 @@ cat > "${CORE_CFG_DIR}/config.json" << EOF
     }
   ],
   "nat": null,
+  "qos": null,
   "dns": null,
   "dhcp": {
     "enabled": ${DHCP_ENABLED_JSON},
