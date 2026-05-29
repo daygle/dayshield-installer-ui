@@ -948,17 +948,19 @@ fi
 rm -f "${TARGET}/etc/systemd/system/getty@tty1.service" 2>/dev/null || true
 
 # ── Write /etc/fstab ──────────────────────────────────────────
+# Partition numbering must match the layout created in partition.sh / format.sh:
+#   p1=BIOS  p2=EFI  p3=BOOT  p4=ROOT  p5=STATE
 DISK_NODE="$DISK"
 EFI_PART="/dev/${DISK_NODE}2"
 BOOT_PART="/dev/${DISK_NODE}3"
 ROOT_PART="/dev/${DISK_NODE}4"
-STATE_PART="/dev/${DISK_NODE}6"
+STATE_PART="/dev/${DISK_NODE}5"
 case "$DISK_NODE" in
   nvme*|mmcblk*)
     EFI_PART="/dev/${DISK_NODE}p2"
     BOOT_PART="/dev/${DISK_NODE}p3"
     ROOT_PART="/dev/${DISK_NODE}p4"
-    STATE_PART="/dev/${DISK_NODE}p6"
+    STATE_PART="/dev/${DISK_NODE}p5"
     ;;
 esac
 
