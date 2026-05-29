@@ -559,19 +559,23 @@
           </div>
           <div class="summary-row">
             <span class="summary-label">EFI Partition</span>
-            <span class="summary-value" x-text="partitionPath(2) + '  (FAT32, 512 MiB)'"></span>
+            <span class="summary-value" x-text="partitionPath(2) + '  (DS_EFI, FAT32, 512 MiB)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">Boot Partition</span>
             <span class="summary-value" x-text="partitionPath(3) + '  (DAYSHIELD_BOOT, ext4, 2 GiB)'"></span>
           </div>
           <div class="summary-row">
-            <span class="summary-label">Operating System</span>
-            <span class="summary-value" x-text="partitionPath(4) + '  (DS_SYSROOT, ext4, 6 GiB)'"></span>
+            <span class="summary-label">Operating System (slot A)</span>
+            <span class="summary-value" x-text="partitionPath(4) + '  (DS_ROOT_A, ext4, 5 GiB)'"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Operating System (slot B)</span>
+            <span class="summary-value" x-text="partitionPath(5) + '  (DS_ROOT_B, ext4, 5 GiB) — rollback target'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">Persistent Data</span>
-            <span class="summary-value" x-text="partitionPath(5) + '  (DS_STATE, mounted at /var)'"></span>
+            <span class="summary-value" x-text="partitionPath(6) + '  (DS_STATE, mounted at /var)'"></span>
           </div>
           <div class="summary-row">
             <span class="summary-label">Bootloader</span>

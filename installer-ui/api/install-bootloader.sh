@@ -149,67 +149,101 @@ find_dev_by_label() {
 }
 
 BOOT_DEV=$(find_dev_by_label "DAYSHIELD_BOOT")
-ROOT_DEV=$(find_dev_by_label "DS_SYSROOT")
-[ -n "$BOOT_DEV" ] && [ -n "$ROOT_DEV" ] || json_error "Required boot/root labels were not found (DAYSHIELD_BOOT, DS_SYSROOT)"
+ROOT_A_DEV=$(find_dev_by_label "DS_ROOT_A")
+ROOT_B_DEV=$(find_dev_by_label "DS_ROOT_B")
+[ -n "$BOOT_DEV" ] && [ -n "$ROOT_A_DEV" ] && [ -n "$ROOT_B_DEV" ] \
+  || json_error "Required boot/root labels were not found (DAYSHIELD_BOOT, DS_ROOT_A, DS_ROOT_B)"
 
-BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || true)
-ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || true)
-[ -n "$BOOT_UUID" ] && [ -n "$ROOT_UUID" ] || json_error "Failed to resolve boot/root UUIDs"
+# ── Write the A/B grub.cfg ──────────────────────────────────────────────────
+# Hand-write the GRUB config — we don't want grub-mkconfig pulling in os-prober
+# entries or stomping our slot scheme.  Slot selection is driven by grubenv
+# variables that dayshield-core writes when applying an update:
+#   saved_entry          — "ds_a" or "ds_b" (whichever slot to boot next)
+#   fallback_entry       — slot to revert to if boot_attempts_left hits 0
+#   boot_state           — "trying" while a new slot is on probation, "confirmed" after signal-boot-success
+#   boot_attempts_left   — initialised to 3 on apply; GRUB decrements each boot until userspace confirms
+#
+# The first boot of a freshly-applied slot has tries_left=3 → 2 → 1 → 0; on the
+# fourth attempt without confirmation, GRUB switches default to fallback_entry.
 
-KERNEL_FILE=$(find_latest_boot_file "${TARGET}/boot" "vmlinuz-" "vmlinuz") || json_error "Could not find kernel in ${TARGET}/boot"
-INITRD_FILE=$(find_latest_boot_file "${TARGET}/boot" "initrd.img-" "initrd.img") || json_error "Could not find initrd in ${TARGET}/boot"
-KERNEL_NAME=$(basename "$KERNEL_FILE")
-INITRD_NAME=$(basename "$INITRD_FILE")
+mkdir -p "${TARGET}/boot/grub"
+cat > "${TARGET}/boot/grub/grub.cfg" <<'GRUB_EOF'
+set timeout=0
+set timeout_style=hidden
 
-mkdir -p "${TARGET}/etc/grub.d"
-cat > "${TARGET}/etc/grub.d/09_dayshield" <<EOF
-#!/bin/sh
-set -e
-cat <<'GRUB_EOF'
-menuentry 'DayShield Firewall' --id 'dayshield' {
-    search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
-    linux /${KERNEL_NAME} root=UUID=${ROOT_UUID} ro
-    initrd /${INITRD_NAME}
+# Load persisted slot state.
+load_env
+
+# Defaults for first-ever boot.
+if [ -z "${saved_entry}" ];   then set saved_entry=ds_a;     fi
+if [ -z "${boot_state}" ];    then set boot_state=confirmed; fi
+
+# Slot-fallback routing: if a probationary boot has exhausted its retries,
+# switch the default to the fallback entry on this boot.
+if [ "${boot_state}" = "trying" ]; then
+    if [ "${boot_attempts_left}" = "0" ] && [ -n "${fallback_entry}" ]; then
+        set default="${fallback_entry}"
+    else
+        set default="${saved_entry}"
+    fi
+else
+    set default="${saved_entry}"
+fi
+
+# Count the boot attempt (GRUB has no arithmetic; we cascade explicit values).
+if [ "${boot_state}" = "trying" ]; then
+    if [ "${boot_attempts_left}" = "3" ]; then
+        set boot_attempts_left=2
+        save_env boot_attempts_left
+    elif [ "${boot_attempts_left}" = "2" ]; then
+        set boot_attempts_left=1
+        save_env boot_attempts_left
+    elif [ "${boot_attempts_left}" = "1" ]; then
+        set boot_attempts_left=0
+        save_env boot_attempts_left
+    fi
+fi
+
+menuentry 'DayShield (slot A)' --id ds_a {
+    search --no-floppy --label DAYSHIELD_BOOT --set=root
+    linux /dayshield/slot-a/vmlinuz root=LABEL=DS_ROOT_A ro
+    initrd /dayshield/slot-a/initrd.img
+}
+
+menuentry 'DayShield (slot B)' --id ds_b {
+    search --no-floppy --label DAYSHIELD_BOOT --set=root
+    linux /dayshield/slot-b/vmlinuz root=LABEL=DS_ROOT_B ro
+    initrd /dayshield/slot-b/initrd.img
 }
 GRUB_EOF
-EOF
-chmod 755 "${TARGET}/etc/grub.d/09_dayshield"
 
+# ── Seed grubenv with a clean install state ─────────────────────────────────
+# Slot A is active; no probation in effect.
+if command -v grub-editenv >/dev/null 2>&1; then
+  grub-editenv "${TARGET}/boot/grub/grubenv" create 2>/dev/null || true
+  grub-editenv "${TARGET}/boot/grub/grubenv" set saved_entry=ds_a
+  grub-editenv "${TARGET}/boot/grub/grubenv" set boot_state=confirmed
+  grub-editenv "${TARGET}/boot/grub/grubenv" unset boot_attempts_left  || true
+  grub-editenv "${TARGET}/boot/grub/grubenv" unset fallback_entry      || true
+fi
+
+# Disable grub-mkconfig — we manage grub.cfg by hand to keep the A/B logic
+# pristine.  /etc/default/grub still gets a minimal file so package upgrades
+# don't error out, but it has no effect on our hand-written grub.cfg.
 cat > "${TARGET}/etc/default/grub" <<'EOF'
+# This file is intentionally minimal.  DayShield manages /boot/grub/grub.cfg
+# directly (slot-aware A/B layout); grub-mkconfig is not used.
 GRUB_DEFAULT=saved
-GRUB_SAVEDEFAULT=false
-GRUB_TIMEOUT=5
+GRUB_TIMEOUT=0
+GRUB_TIMEOUT_STYLE=hidden
 GRUB_DISTRIBUTOR="DayShield"
 GRUB_CMDLINE_LINUX_DEFAULT=""
 GRUB_CMDLINE_LINUX=""
 GRUB_TERMINAL_INPUT=console
-GRUB_GFXMODE=auto
+GRUB_DISABLE_OS_PROBER=true
 EOF
 
-mkdir -p "${TARGET}/boot/grub"
-if chroot "$TARGET" command -v grub-mkconfig >/dev/null 2>&1; then
-  chroot "$TARGET" grub-mkconfig -o /boot/grub/grub.cfg >>"$LOG" 2>&1 || true
-elif command -v grub-mkconfig >/dev/null 2>&1; then
-  grub-mkconfig -o "${TARGET}/boot/grub/grub.cfg" >>"$LOG" 2>&1 || true
-fi
-
-if [ ! -s "${TARGET}/boot/grub/grub.cfg" ]; then
-  cat > "${TARGET}/boot/grub/grub.cfg" <<EOF
-set default=saved
-set timeout=5
-
-menuentry 'DayShield Firewall' --id 'dayshield' {
-    search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
-    linux /${KERNEL_NAME} root=UUID=${ROOT_UUID} ro quiet splash
-    initrd /${INITRD_NAME}
-}
-EOF
-fi
-
-if chroot "$TARGET" command -v grub-set-default >/dev/null 2>&1; then
-  chroot "$TARGET" grub-set-default dayshield >>"$LOG" 2>&1 || true
-elif command -v grub-editenv >/dev/null 2>&1; then
-  grub-editenv "${TARGET}/boot/grub/grubenv" set saved_entry=dayshield >>"$LOG" 2>&1 || true
-fi
+# Mask 09_dayshield (legacy single-rootfs entry) if it exists.
+rm -f "${TARGET}/etc/grub.d/09_dayshield" 2>/dev/null || true
 
 json_ok "$warning"

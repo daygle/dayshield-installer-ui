@@ -57,14 +57,19 @@ command -v parted >/dev/null 2>&1 || json_error "parted not found"
 
 wipefs -a "$DEV" >/dev/null 2>&1 || true
 
-# Partitions for the image-based update scheme:
-#   1: BIOS boot (1-2MiB)
-#   2: EFI System (2-514MiB)
-#   3: BOOT (514MiB-2562MiB, 2 GiB) — holds kernel/initrd AND the squashfs
-#      image store (/boot/dayshield/images) used by the initramfs update hook.
-#   4: ROOT (2562MiB-8706MiB, 6 GiB) — single root filesystem extracted
-#      from the squashfs at install AND replaced via rsync on update.
-#   5: STATE (8706MiB-100%) — persistent /var (config, certs, databases).
+# Partitions for the A/B image-based update scheme:
+#   1: BIOS boot   (1-2 MiB)
+#   2: EFI         (2-514 MiB, FAT32) — DS_EFI
+#   3: BOOT        (514-2562 MiB, 2 GiB, ext4) — DAYSHIELD_BOOT
+#                  Holds GRUB config + grubenv + kernel/initrd for each slot.
+#   4: ROOT_A      (2562-7682 MiB, 5 GiB, ext4) — DS_ROOT_A
+#   5: ROOT_B      (7682-12802 MiB, 5 GiB, ext4) — DS_ROOT_B
+#                  Two rootfs slots.  Updates write to the INACTIVE slot,
+#                  GRUB swaps the active slot on the next boot, rollback is
+#                  an instant grubenv flip.  Both slots are populated at
+#                  install time so rollback is available from day one.
+#   6: STATE       (12802 MiB-100%, ext4) — DS_STATE
+#                  Persistent /var (config, certs, databases).
 parted_err=$(parted -s "$DEV" \
   mklabel gpt \
   mkpart "BIOS" 1MiB 2MiB \
@@ -72,8 +77,9 @@ parted_err=$(parted -s "$DEV" \
   mkpart "EFI" fat32 2MiB 514MiB \
   set 2 esp on \
   mkpart "BOOT" ext4 514MiB 2562MiB \
-  mkpart "ROOT" ext4 2562MiB 8706MiB \
-  mkpart "STATE" ext4 8706MiB 100% 2>&1) || json_error "parted failed: $parted_err"
+  mkpart "ROOT_A" ext4 2562MiB 7682MiB \
+  mkpart "ROOT_B" ext4 7682MiB 12802MiB \
+  mkpart "STATE" ext4 12802MiB 100% 2>&1) || json_error "parted failed: $parted_err"
 
 partprobe "$DEV" >/dev/null 2>&1 || true
 if command -v udevadm >/dev/null 2>&1; then
@@ -97,7 +103,7 @@ wait_part() {
   [ -b "$part" ]
 }
 
-for number in 2 3 4 5; do
+for number in 2 3 4 5 6; do
   part=$(part_node "$number")
   wait_part "$part" || json_error "Partition node did not appear after partitioning: $part"
 done

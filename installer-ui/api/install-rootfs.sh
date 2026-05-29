@@ -124,9 +124,10 @@ printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$' || reply_error "Invalid disk nam
 
 EFI_PART=$(part_node 2)
 BOOT_PART=$(part_node 3)
-ROOT_PART=$(part_node 4)
-STATE_PART=$(part_node 5)
-for part in "$EFI_PART" "$BOOT_PART" "$ROOT_PART" "$STATE_PART"; do
+ROOT_A_PART=$(part_node 4)
+ROOT_B_PART=$(part_node 5)
+STATE_PART=$(part_node 6)
+for part in "$EFI_PART" "$BOOT_PART" "$ROOT_A_PART" "$ROOT_B_PART" "$STATE_PART"; do
   [ -b "$part" ] || reply_error "Partition not found: $part"
 done
 
@@ -135,7 +136,9 @@ ROOTFS=$(find_rootfs || true)
 
 TARGET="/mnt/target"
 mkdir -p "$TARGET"
-mount "$ROOT_PART" "$TARGET" 2>/dev/null || reply_error "Failed to mount $ROOT_PART on $TARGET"
+
+# ── Slot A: active at install time ──────────────────────────────────────────
+mount "$ROOT_A_PART" "$TARGET" 2>/dev/null || reply_error "Failed to mount $ROOT_A_PART on $TARGET"
 mkdir -p "$TARGET/boot"
 mount "$BOOT_PART" "$TARGET/boot" 2>/dev/null || reply_error "Failed to mount boot partition $BOOT_PART"
 mkdir -p "$TARGET/boot/efi"
@@ -143,7 +146,7 @@ mount "$EFI_PART" "$TARGET/boot/efi" 2>/dev/null || reply_error "Failed to mount
 mkdir -p "$TARGET/var"
 mount "$STATE_PART" "$TARGET/var" 2>/dev/null || reply_error "Failed to mount persistent state partition $STATE_PART"
 
-extract_rootfs "$ROOTFS" "$TARGET" >/tmp/dayshield-install-rootfs.log 2>&1 || reply_error "Failed to extract rootfs archive"
+extract_rootfs "$ROOTFS" "$TARGET" >/tmp/dayshield-install-rootfs.log 2>&1 || reply_error "Failed to extract rootfs archive to slot A"
 
 DEFAULTS_DIR="/run/installer/defaults"
 if [ -d "$DEFAULTS_DIR" ]; then
@@ -151,51 +154,74 @@ if [ -d "$DEFAULTS_DIR" ]; then
   cp -a "${DEFAULTS_DIR}/." "${TARGET}/etc/dayshield/"
 fi
 
-# Resolve the installed version from the build-stamped version file rather
-# than writing a placeholder — this is what dayshield-core's status() falls
-# back to when current.json is absent, but writing it explicitly keeps the
-# rollback / boot-success flow consistent from the first boot.
 INSTALL_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf 'unknown')
 INSTALLED_VERSION=$(tr -d '[:space:]' < "${TARGET}/etc/dayshield/version" 2>/dev/null || true)
 [ -n "$INSTALLED_VERSION" ] || INSTALLED_VERSION="unknown"
 
+# ── Stage slot A's kernel + initrd to BOOT under /boot/dayshield/slot-a ─────
+# GRUB boots /boot/dayshield/slot-{a,b}/{vmlinuz,initrd.img}.  Each slot keeps
+# its own kernel, so kernel updates flow through the same A/B mechanism.
+SLOT_A_BOOT="${TARGET}/boot/dayshield/slot-a"
+mkdir -p "$SLOT_A_BOOT"
+# Use the most recent kernel+initrd in /boot.
+SLOT_A_VMLINUZ=$(ls -1 "${TARGET}/boot/vmlinuz-"* 2>/dev/null | sort -V | tail -n1)
+SLOT_A_INITRD=$(ls -1 "${TARGET}/boot/initrd.img-"* 2>/dev/null | sort -V | tail -n1)
+[ -f "$SLOT_A_VMLINUZ" ] && cp -f "$SLOT_A_VMLINUZ" "${SLOT_A_BOOT}/vmlinuz"
+[ -f "$SLOT_A_INITRD" ]  && cp -f "$SLOT_A_INITRD"  "${SLOT_A_BOOT}/initrd.img"
+
+# ── Write A/B slot state on the STATE partition ─────────────────────────────
+# This is the source of truth for which slot is current.  /etc/dayshield/slot
+# is determined at runtime by the rootfs (label of root partition).
 ROOTFS_STATE_DIR="${TARGET}/var/lib/dayshield/rootfs-update"
 mkdir -p "$ROOTFS_STATE_DIR"
-printf '{"version":"%s","recordedAt":"%s"}\n' "$INSTALLED_VERSION" "$INSTALL_TS" > "${ROOTFS_STATE_DIR}/current.json"
+cat > "${ROOTFS_STATE_DIR}/slots.json" <<EOF
+{
+  "currentSlot": "A",
+  "currentVersion": "${INSTALLED_VERSION}",
+  "standbySlot": "B",
+  "standbyVersion": "${INSTALLED_VERSION}",
+  "recordedAt": "${INSTALL_TS}"
+}
+EOF
 
-# Seed /boot/dayshield/images with the installed squashfs so the in-place
-# image-based update flow has a known-good baseline.  This makes "rollback to
-# previous version" work even immediately after a fresh install (it rolls back
-# to the install version itself) and gives the auto-revert path something to
-# target if a future update breaks the kernel/userspace.
-IMAGE_STORE="${TARGET}/boot/dayshield/images"
-mkdir -p "$IMAGE_STORE" "${TARGET}/boot/dayshield/metadata"
+# Unmount slot A so we can populate slot B.
+umount "${TARGET}/var" 2>/dev/null || true
+umount "${TARGET}/boot/efi" 2>/dev/null || true
+umount "${TARGET}/boot" 2>/dev/null || true
+umount "${TARGET}" 2>/dev/null || true
 
-# Look for the clean squashfs the ISO build embeds at /installer/rootfs.squashfs.
-# (assemble-iso.sh writes it there from the rootfs release artifact.)
-SQUASHFS_SRC=""
-for candidate in \
-  "$(dirname "$ROOTFS")/rootfs.squashfs" \
-  "$(dirname "$ROOTFS")/rootfs-${INSTALLED_VERSION}.squashfs"; do
-  if [ -f "$candidate" ]; then
-    SQUASHFS_SRC="$candidate"
-    break
-  fi
-done
+# ── Slot B: identical copy of slot A so first-day rollback works ────────────
+# We extract the same rootfs tarball into slot B.  The two slots are byte-wise
+# identical at install time; the first update is what makes them diverge.
+mount "$ROOT_B_PART" "$TARGET" 2>/dev/null || reply_error "Failed to mount $ROOT_B_PART on $TARGET (for slot B install)"
+extract_rootfs "$ROOTFS" "$TARGET" >>/tmp/dayshield-install-rootfs.log 2>&1 || reply_error "Failed to extract rootfs archive to slot B"
 
-if [ -n "$SQUASHFS_SRC" ] && [ "$INSTALLED_VERSION" != "unknown" ]; then
-  DEST_IMAGE="${IMAGE_STORE}/rootfs-${INSTALLED_VERSION}.squashfs"
-  cp -f "$SQUASHFS_SRC" "$DEST_IMAGE"
-  chmod 644 "$DEST_IMAGE"
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha=$(sha256sum "$DEST_IMAGE" | awk '{print $1}')
-    printf '%s  %s\n' "$sha" "$(basename "$DEST_IMAGE")" > "${DEST_IMAGE}.sha256"
-    chmod 644 "${DEST_IMAGE}.sha256"
-  fi
-  ln -sfn "images/rootfs-${INSTALLED_VERSION}.squashfs" "${TARGET}/boot/dayshield/current"
+if [ -d "$DEFAULTS_DIR" ]; then
+  mkdir -p "${TARGET}/etc/dayshield"
+  cp -a "${DEFAULTS_DIR}/." "${TARGET}/etc/dayshield/"
 fi
 
-# Initialise the boot-attempt counter so the auto-revert logic starts clean.
-printf '0\n' > "${TARGET}/boot/dayshield/boot-attempts"
+# Stage slot B's kernel + initrd to BOOT under /boot/dayshield/slot-b.
+# We need BOOT mounted to copy into it.
+mkdir -p "${TARGET}/boot"
+mount "$BOOT_PART" "${TARGET}/boot" 2>/dev/null || reply_error "Failed to mount boot partition for slot B kernel copy"
+SLOT_B_BOOT="${TARGET}/boot/dayshield/slot-b"
+mkdir -p "$SLOT_B_BOOT"
+SLOT_B_VMLINUZ=$(ls -1 "${TARGET}/boot/vmlinuz-"* 2>/dev/null | sort -V | tail -n1)
+SLOT_B_INITRD=$(ls -1 "${TARGET}/boot/initrd.img-"* 2>/dev/null | sort -V | tail -n1)
+[ -f "$SLOT_B_VMLINUZ" ] && cp -f "$SLOT_B_VMLINUZ" "${SLOT_B_BOOT}/vmlinuz"
+[ -f "$SLOT_B_INITRD" ]  && cp -f "$SLOT_B_INITRD"  "${SLOT_B_BOOT}/initrd.img"
+
+umount "${TARGET}/boot" 2>/dev/null || true
+umount "${TARGET}" 2>/dev/null || true
+
+# ── Remount slot A as the active install for the bootloader step ────────────
+mount "$ROOT_A_PART" "$TARGET" 2>/dev/null || reply_error "Failed to re-mount slot A as active"
+mkdir -p "$TARGET/boot"
+mount "$BOOT_PART" "$TARGET/boot" 2>/dev/null || reply_error "Failed to re-mount boot partition"
+mkdir -p "$TARGET/boot/efi"
+mount "$EFI_PART" "$TARGET/boot/efi" 2>/dev/null || reply_error "Failed to re-mount EFI partition"
+mkdir -p "$TARGET/var"
+mount "$STATE_PART" "$TARGET/var" 2>/dev/null || reply_error "Failed to re-mount STATE partition"
 
 reply_ok
