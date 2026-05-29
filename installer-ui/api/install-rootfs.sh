@@ -1,5 +1,6 @@
 #!/bin/sh
-# install-rootfs.sh - Mount target partitions and extract rootfs for RAUC A/B layout.
+# install-rootfs.sh - Mount target partitions and extract rootfs for the
+# image-based update layout (single root, no A/B).
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -123,9 +124,9 @@ printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$' || reply_error "Invalid disk nam
 
 EFI_PART=$(part_node 2)
 BOOT_PART=$(part_node 3)
-ROOT_A_PART=$(part_node 4)
-STATE_PART=$(part_node 6)
-for part in "$EFI_PART" "$BOOT_PART" "$ROOT_A_PART" "$STATE_PART"; do
+ROOT_PART=$(part_node 4)
+STATE_PART=$(part_node 5)
+for part in "$EFI_PART" "$BOOT_PART" "$ROOT_PART" "$STATE_PART"; do
   [ -b "$part" ] || reply_error "Partition not found: $part"
 done
 
@@ -134,7 +135,7 @@ ROOTFS=$(find_rootfs || true)
 
 TARGET="/mnt/target"
 mkdir -p "$TARGET"
-mount "$ROOT_A_PART" "$TARGET" 2>/dev/null || reply_error "Failed to mount $ROOT_A_PART on $TARGET"
+mount "$ROOT_PART" "$TARGET" 2>/dev/null || reply_error "Failed to mount $ROOT_PART on $TARGET"
 mkdir -p "$TARGET/boot"
 mount "$BOOT_PART" "$TARGET/boot" 2>/dev/null || reply_error "Failed to mount boot partition $BOOT_PART"
 mkdir -p "$TARGET/boot/efi"
@@ -150,10 +151,51 @@ if [ -d "$DEFAULTS_DIR" ]; then
   cp -a "${DEFAULTS_DIR}/." "${TARGET}/etc/dayshield/"
 fi
 
-# Write RAUC initial state so dayshield-core knows the installed version
-RAUC_STATE_DIR="${TARGET}/var/lib/dayshield/rootfs-update"
-mkdir -p "$RAUC_STATE_DIR"
+# Resolve the installed version from the build-stamped version file rather
+# than writing a placeholder — this is what dayshield-core's status() falls
+# back to when current.json is absent, but writing it explicitly keeps the
+# rollback / boot-success flow consistent from the first boot.
 INSTALL_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf 'unknown')
-printf '{"version":"initial","recordedAt":"%s"}\n' "$INSTALL_TS" > "${RAUC_STATE_DIR}/current.json"
+INSTALLED_VERSION=$(tr -d '[:space:]' < "${TARGET}/etc/dayshield/version" 2>/dev/null || true)
+[ -n "$INSTALLED_VERSION" ] || INSTALLED_VERSION="unknown"
+
+ROOTFS_STATE_DIR="${TARGET}/var/lib/dayshield/rootfs-update"
+mkdir -p "$ROOTFS_STATE_DIR"
+printf '{"version":"%s","recordedAt":"%s"}\n' "$INSTALLED_VERSION" "$INSTALL_TS" > "${ROOTFS_STATE_DIR}/current.json"
+
+# Seed /boot/dayshield/images with the installed squashfs so the in-place
+# image-based update flow has a known-good baseline.  This makes "rollback to
+# previous version" work even immediately after a fresh install (it rolls back
+# to the install version itself) and gives the auto-revert path something to
+# target if a future update breaks the kernel/userspace.
+IMAGE_STORE="${TARGET}/boot/dayshield/images"
+mkdir -p "$IMAGE_STORE" "${TARGET}/boot/dayshield/metadata"
+
+# Look for the clean squashfs the ISO build embeds at /installer/rootfs.squashfs.
+# (assemble-iso.sh writes it there from the rootfs release artifact.)
+SQUASHFS_SRC=""
+for candidate in \
+  "$(dirname "$ROOTFS")/rootfs.squashfs" \
+  "$(dirname "$ROOTFS")/rootfs-${INSTALLED_VERSION}.squashfs"; do
+  if [ -f "$candidate" ]; then
+    SQUASHFS_SRC="$candidate"
+    break
+  fi
+done
+
+if [ -n "$SQUASHFS_SRC" ] && [ "$INSTALLED_VERSION" != "unknown" ]; then
+  DEST_IMAGE="${IMAGE_STORE}/rootfs-${INSTALLED_VERSION}.squashfs"
+  cp -f "$SQUASHFS_SRC" "$DEST_IMAGE"
+  chmod 644 "$DEST_IMAGE"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha=$(sha256sum "$DEST_IMAGE" | awk '{print $1}')
+    printf '%s  %s\n' "$sha" "$(basename "$DEST_IMAGE")" > "${DEST_IMAGE}.sha256"
+    chmod 644 "${DEST_IMAGE}.sha256"
+  fi
+  ln -sfn "images/rootfs-${INSTALLED_VERSION}.squashfs" "${TARGET}/boot/dayshield/current"
+fi
+
+# Initialise the boot-attempt counter so the auto-revert logic starts clean.
+printf '0\n' > "${TARGET}/boot/dayshield/boot-attempts"
 
 reply_ok

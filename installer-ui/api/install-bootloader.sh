@@ -149,8 +149,11 @@ find_dev_by_label() {
 }
 
 BOOT_DEV=$(find_dev_by_label "DAYSHIELD_BOOT")
-ROOT_DEV=$(find_dev_by_label "DS_ROOT_A")
-[ -n "$BOOT_DEV" ] && [ -n "$ROOT_DEV" ] || json_error "Required boot/root labels were not found (DAYSHIELD_BOOT, DS_ROOT_A)"
+# Accept DS_SYSROOT (new image-based scheme) and DS_ROOT_A (legacy A/B scheme
+# from the OSTree era) so existing installs can also be re-installed cleanly.
+ROOT_DEV=$(find_dev_by_label "DS_SYSROOT")
+[ -n "$ROOT_DEV" ] || ROOT_DEV=$(find_dev_by_label "DS_ROOT_A")
+[ -n "$BOOT_DEV" ] && [ -n "$ROOT_DEV" ] || json_error "Required boot/root labels were not found (DAYSHIELD_BOOT, DS_SYSROOT)"
 
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || true)
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || true)
@@ -168,7 +171,7 @@ set -e
 cat <<'GRUB_EOF'
 menuentry 'DayShield Firewall' --id 'dayshield' {
     search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
-    linux /${KERNEL_NAME} root=UUID=${ROOT_UUID} ro quiet splash
+    linux /${KERNEL_NAME} root=UUID=${ROOT_UUID} ro
     initrd /${INITRD_NAME}
 }
 GRUB_EOF
@@ -180,7 +183,7 @@ GRUB_DEFAULT=saved
 GRUB_SAVEDEFAULT=false
 GRUB_TIMEOUT=5
 GRUB_DISTRIBUTOR="DayShield"
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_CMDLINE_LINUX_DEFAULT=""
 GRUB_CMDLINE_LINUX=""
 GRUB_TERMINAL_INPUT=console
 GRUB_GFXMODE=auto

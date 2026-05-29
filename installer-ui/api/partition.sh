@@ -1,5 +1,5 @@
 #!/bin/sh
-# partition.sh - Create the DayShield RAUC GPT partition layout.
+# partition.sh - Create the DayShield image-based update GPT partition layout.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -57,20 +57,23 @@ command -v parted >/dev/null 2>&1 || json_error "parted not found"
 
 wipefs -a "$DEV" >/dev/null 2>&1 || true
 
-# Partitions: BIOS boot (1-2MiB), EFI (2-514MiB), BOOT (514MiB-1538MiB),
-# DS_ROOT_A (1538MiB-5634MiB, 4 GiB primary OS slot),
-# DS_ROOT_B (5634MiB-9730MiB, 4 GiB update slot for fail-safe updates),
-# STATE (9730MiB-100%) for persistent /var.
+# Partitions for the image-based update scheme:
+#   1: BIOS boot (1-2MiB)
+#   2: EFI System (2-514MiB)
+#   3: BOOT (514MiB-2562MiB, 2 GiB) — holds kernel/initrd AND the squashfs
+#      image store (/boot/dayshield/images) used by the initramfs update hook.
+#   4: ROOT (2562MiB-8706MiB, 6 GiB) — single root filesystem extracted
+#      from the squashfs at install AND replaced via rsync on update.
+#   5: STATE (8706MiB-100%) — persistent /var (config, certs, databases).
 parted_err=$(parted -s "$DEV" \
   mklabel gpt \
   mkpart "BIOS" 1MiB 2MiB \
   set 1 bios_grub on \
   mkpart "EFI" fat32 2MiB 514MiB \
   set 2 esp on \
-  mkpart "BOOT" ext4 514MiB 1538MiB \
-  mkpart "ROOT_A" ext4 1538MiB 5634MiB \
-  mkpart "ROOT_B" ext4 5634MiB 9730MiB \
-  mkpart "STATE" ext4 9730MiB 100% 2>&1) || json_error "parted failed: $parted_err"
+  mkpart "BOOT" ext4 514MiB 2562MiB \
+  mkpart "ROOT" ext4 2562MiB 8706MiB \
+  mkpart "STATE" ext4 8706MiB 100% 2>&1) || json_error "parted failed: $parted_err"
 
 partprobe "$DEV" >/dev/null 2>&1 || true
 if command -v udevadm >/dev/null 2>&1; then
@@ -94,7 +97,7 @@ wait_part() {
   [ -b "$part" ]
 }
 
-for number in 2 3 4 5 6; do
+for number in 2 3 4 5; do
   part=$(part_node "$number")
   wait_part "$part" || json_error "Partition node did not appear after partitioning: $part"
 done
