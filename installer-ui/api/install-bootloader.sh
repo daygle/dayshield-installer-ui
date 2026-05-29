@@ -1,5 +1,5 @@
 #!/bin/sh
-# install-bootloader.sh - Install GRUB for the DayShield RAUC system layout.
+# install-bootloader.sh - Install GRUB for the DayShield image-based update layout.
 # Query string params: disk=<name> (for example: sda)
 
 set -eu
@@ -149,10 +149,7 @@ find_dev_by_label() {
 }
 
 BOOT_DEV=$(find_dev_by_label "DAYSHIELD_BOOT")
-# Accept DS_SYSROOT (new image-based scheme) and DS_ROOT_A (legacy A/B scheme
-# from the OSTree era) so existing installs can also be re-installed cleanly.
 ROOT_DEV=$(find_dev_by_label "DS_SYSROOT")
-[ -n "$ROOT_DEV" ] || ROOT_DEV=$(find_dev_by_label "DS_ROOT_A")
 [ -n "$BOOT_DEV" ] && [ -n "$ROOT_DEV" ] || json_error "Required boot/root labels were not found (DAYSHIELD_BOOT, DS_SYSROOT)"
 
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || true)
