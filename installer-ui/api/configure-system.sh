@@ -483,13 +483,15 @@ fi
 # Use the binary in the target rootfs to hash and write the credentials so
 # the same code/parameters are used at install time and at runtime.
 if chroot "$TARGET" /usr/local/sbin/dayshield-core init-admin "$PASSWORD" >/dev/null 2>&1; then
-  chmod 600 "${TARGET}/etc/dayshield/admin.json" 2>/dev/null || true
+  chmod 600 "${TARGET}/var/lib/dayshield/admin.json" 2>/dev/null || true
 else
   printf '{"error":"Failed to initialise DayShield admin credentials - dayshield-core init-admin failed"}\n'; exit 1
 fi
 
 # ── Configure LAN interface ───────────────────────────────────
-NETDIR="${TARGET}/etc/dayshield"
+# network.conf is consumed by dayshield-core at first boot to seed config.json,
+# and must survive A/B rootfs updates - so it lives on the shared STATE partition.
+NETDIR="${TARGET}/var/lib/dayshield"
 mkdir -p "$NETDIR"
 
 # Write DayShield network config
@@ -507,8 +509,8 @@ LAN_DHCP_END=${DHCP_END}
 EOF
 
 # Write nftables interface mapping to /var so rootfs updates never clobber
-# user interface assignments. /etc/dayshield/config/nft-ifaces.conf
-# is a symlink to this file (created during rootfs build).
+# user interface assignments.  /etc/nftables.conf includes this file directly
+# from /var/lib/dayshield/config/nft-ifaces.conf.
 mkdir -p "${TARGET}/var/lib/dayshield/config"
 NFT_WAN_IF="${WAN_IFACE}"
 if [ "$WAN_TYPE" = "pppoe" ]; then
@@ -518,6 +520,12 @@ cat > "${TARGET}/var/lib/dayshield/config/nft-ifaces.conf" << EOF
 define WAN_IF = ${NFT_WAN_IF}
 define LAN_IF = ${IFACE}
 EOF
+
+# The full config.json (interfaces, firewall rules, DHCP, DNS) is written
+# further down via the CORE_CFG_DIR block, into /var/lib/dayshield/config.
+# That single write is the persistent source of truth dayshield-core reads
+# on startup, and because /var is shared between A/B slots it survives
+# every rootfs update.
 
 # Also write a systemd-networkd .network file if applicable
 NETWORKD_DIR="${TARGET}/etc/systemd/network"
@@ -682,10 +690,13 @@ EOF
 
 # Seed canonical Kea configuration used by DayShield and mirror it at Kea's
 # distro default path.
-mkdir -p "${TARGET}/etc/dayshield" "${TARGET}/etc/kea" "${TARGET}/var/lib/kea" "${TARGET}/var/log/kea"
+mkdir -p \
+  "${TARGET}/etc/dayshield" "${TARGET}/etc/kea" \
+  "${TARGET}/var/lib/kea" "${TARGET}/var/log/kea" \
+  "${TARGET}/var/lib/dayshield/kea"
 chmod 755 "${TARGET}/etc/kea"
 if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
-cat > "${TARGET}/etc/dayshield/kea-dhcp4.conf" << EOF
+cat > "${TARGET}/var/lib/dayshield/kea/kea-dhcp4.conf" << EOF
 {
   "Dhcp4": {
     "interfaces-config": {
@@ -715,12 +726,12 @@ cat > "${TARGET}/etc/dayshield/kea-dhcp4.conf" << EOF
   }
 }
 EOF
-chmod 644 "${TARGET}/etc/dayshield/kea-dhcp4.conf"
-cp "${TARGET}/etc/dayshield/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
+chmod 644 "${TARGET}/var/lib/dayshield/kea/kea-dhcp4.conf"
+cp "${TARGET}/var/lib/dayshield/kea/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
 chmod 644 "${TARGET}/etc/kea/kea-dhcp4.conf"
 else
   # Ensure DHCP remains disabled after install when LAN DHCP toggle is off.
-  rm -f "${TARGET}/etc/dayshield/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
+  rm -f "${TARGET}/var/lib/dayshield/kea/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
 fi
 
 # Seed minimal WireGuard configuration
@@ -730,7 +741,7 @@ include: "/etc/dayshield/wg0.conf"
 EOF
 
 # Seed DayShield core config so DHCP UI/API reflects installer defaults.
-CORE_CFG_DIR="${TARGET}/etc/dayshield/config"
+CORE_CFG_DIR="${TARGET}/var/lib/dayshield/config"
 mkdir -p "$CORE_CFG_DIR"
 # Generate UUIDs for seeded default firewall rules.
 _lan_rule_uuid="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || printf 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')"
