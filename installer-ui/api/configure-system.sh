@@ -734,11 +734,15 @@ else
   rm -f "${TARGET}/var/lib/dayshield/kea/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
 fi
 
-# Seed minimal WireGuard configuration
-cat > "${TARGET}/etc/wireguard/wg0.conf" << EOF
-# Minimal WireGuard configuration - defer to dayshield-core
-include: "/etc/dayshield/wg0.conf"
-EOF
+# Seed a minimal WireGuard placeholder that wg-quick can parse safely.
+# dayshield-core will overwrite this with real configuration on first boot.
+# Note: WireGuard's wg-quick does NOT support any "include:" directive --
+# only standard [Interface] and [Peer] sections are valid.
+mkdir -p "${TARGET}/etc/wireguard"
+chmod 700 "${TARGET}/etc/wireguard"
+printf '# WireGuard managed by dayshield-core - do not edit manually\n[Interface]\n# PrivateKey and Address will be written by dayshield-core on first boot\n' \
+  > "${TARGET}/etc/wireguard/wg0.conf"
+chmod 600 "${TARGET}/etc/wireguard/wg0.conf"
 
 # Seed DayShield core config so DHCP UI/API reflects installer defaults.
 CORE_CFG_DIR="${TARGET}/var/lib/dayshield/config"
