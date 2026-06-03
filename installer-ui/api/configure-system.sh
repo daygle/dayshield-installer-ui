@@ -65,1013 +65,326 @@ EOF
   return 0
 }
 
-ipv4_to_u32() {
-  _ip="$1"
-  IFS='.' read -r _o1 _o2 _o3 _o4 << EOF
-$_ip
-EOF
-  printf '%u' "$(( (_o1 << 24) | (_o2 << 16) | (_o3 << 8) | _o4 ))"
+json_err() {
+  _msg=$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  printf '{"error":"%s"}\n' "${_msg}"
+  exit 0
 }
 
-u32_to_ipv4() {
-  _u32="$1"
-  printf '%d.%d.%d.%d' \
-    "$(( (_u32 >> 24) & 255 ))" \
-    "$(( (_u32 >> 16) & 255 ))" \
-    "$(( (_u32 >> 8) & 255 ))" \
-    "$(( _u32 & 255 ))"
-}
-
-network_cidr_from_host() {
-  _ip="$1"
-  _prefix="$2"
-
-  if [ "$_prefix" -eq 32 ]; then
-    _mask=4294967295
-  else
-    _mask=$(( (0xFFFFFFFF << (32 - _prefix)) & 0xFFFFFFFF ))
-  fi
-
-  _ip_u32=$(ipv4_to_u32 "$_ip")
-  _net_u32=$(( _ip_u32 & _mask ))
-  _net_ip=$(u32_to_ipv4 "$_net_u32")
-  printf '%s/%s' "$_net_ip" "$_prefix"
-}
-
-derive_dhcp_range_from_subnet() {
-  _host_ip="$1"
-  _cidr="$2"
-  _net_ip="${_cidr%/*}"
-  _prefix="${_cidr#*/}"
-  _net_u32=$(ipv4_to_u32 "$_net_ip")
-  _host_u32=$(ipv4_to_u32 "$_host_ip")
-
-  _size=$(( 1 << (32 - _prefix) ))
-  if [ "$_prefix" -ge 31 ]; then
-    _first_u32=$_net_u32
-    _last_u32=$(( _net_u32 + _size - 1 ))
-  else
-    _first_u32=$(( _net_u32 + 1 ))
-    _last_u32=$(( _net_u32 + _size - 2 ))
-  fi
-
-  _start_u32=$(( _net_u32 + 100 ))
-  _end_u32=$(( _net_u32 + 199 ))
-
-  if [ "$_start_u32" -lt "$_first_u32" ] || [ "$_start_u32" -gt "$_last_u32" ]; then
-    _start_u32=$(( _first_u32 + 1 ))
-    if [ "$_start_u32" -gt "$_last_u32" ]; then
-      _start_u32=$_first_u32
-    fi
-  fi
-  if [ "$_end_u32" -lt "$_start_u32" ] || [ "$_end_u32" -gt "$_last_u32" ]; then
-    _end_u32=$_last_u32
-  fi
-
-  if [ "$_host_u32" -ge "$_start_u32" ] && [ "$_host_u32" -le "$_end_u32" ]; then
-    if [ "$_host_u32" -eq "$_start_u32" ]; then
-      _start_u32=$(( _start_u32 + 1 ))
-    elif [ "$_host_u32" -eq "$_end_u32" ]; then
-      _end_u32=$(( _end_u32 - 1 ))
-    else
-      _start_u32=$(( _host_u32 + 1 ))
-    fi
-  fi
-
-  if [ "$_start_u32" -gt "$_end_u32" ]; then
-    return 1
-  fi
-
-  printf '%s %s\n' "$(u32_to_ipv4 "$_start_u32")" "$(u32_to_ipv4 "$_end_u32")"
-}
-
-escape_for_double_quotes() {
-  # Escape backslash and double-quote for strings wrapped in double quotes.
-  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
-}
-
-json_escape_string() {
-  # Minimal JSON string escaping for safe embedding in generated JSON.
-  # Control characters are already rejected for PPPoE credentials.
-  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
-}
-
-validate_interface_param() {
-  # Usage: validate_interface_param VALUE PARAM_NAME LABEL
-  if [ -z "$1" ]; then
-    printf '{"error":"Missing required parameter: %s"}\n' "$2"; exit 1
-  fi
-  if ! printf '%s' "$1" | grep -Eq '^[A-Za-z0-9]+([._-][A-Za-z0-9]+)*$'; then
-    printf '{"error":"Invalid %s interface name"}\n' "$3"; exit 1
-  fi
-  # /sys/class/net entries may be symlinks or directories; use -e so either works.
-  if [ ! -e "/sys/class/net/${1}" ]; then
-    printf '{"error":"%s interface not found on system"}\n' "$3"; exit 1
-  fi
-}
-
+# ── Collect and validate inputs ──────────────────────────────
 QS="${QUERY_STRING:-}"
-if [ "${REQUEST_METHOD:-}" = "POST" ] && [ -n "${CONTENT_LENGTH:-}" ]; then
-  # Validate CONTENT_LENGTH is a non-negative integer and cap at 65536 (64 KiB)
-  # to prevent a DoS via an unbounded byte-by-byte dd read.  Reject malformed
-  # values rather than silently treating them as zero.
-  _CL="${CONTENT_LENGTH}"
-  case "$_CL" in
-    *[!0-9]*) printf '{"error":"Invalid Content-Length"}\n'; exit 1 ;;
-  esac
-  if [ "$_CL" -gt 65536 ]; then _CL=65536; fi
-  POST_DATA=$(dd bs=1 count="$_CL" 2>/dev/null || true)
-  if [ -n "$POST_DATA" ]; then
-    if [ -n "$QS" ]; then
-      QS="${QS}&${POST_DATA}"
-    else
-      QS="$POST_DATA"
-    fi
-  fi
-fi
 
-DISK=$(parse_param "$QS" "disk")
-HOSTNAME=$(parse_param "$QS" "hostname")
-PASSWORD=$(parse_param "$QS" "password")
-IFACE=$(parse_param "$QS" "iface")
-WAN_IFACE=$(parse_param "$QS" "wan_iface")
-WAN_TYPE=$(parse_param "$QS" "wan_type")
-WAN_PPPOE_USER=$(parse_param "$QS" "wan_pppoe_user")
-WAN_PPPOE_PASS=$(parse_param "$QS" "wan_pppoe_pass")
-LAN_IP=$(parse_param "$QS" "lan_ip")
-LAN_PREFIX=$(parse_param "$QS" "lan_prefix")
-LAN_DHCP_ENABLE=$(parse_param "$QS" "lan_dhcp_enable")
-DHCP_START=$(parse_param "$QS" "dhcp_start")
-DHCP_END=$(parse_param "$QS" "dhcp_end")
+DISK=$(parse_param    "${QS}" disk)
+HOSTNAME=$(parse_param "${QS}" hostname)
+PASSWORD=$(parse_param "${QS}" password)
+IFACE=$(parse_param   "${QS}" iface)
+LAN_IP=$(parse_param  "${QS}" lan_ip)
+LAN_PREFIX=$(parse_param "${QS}" lan_prefix)
+LAN_DHCP=$(parse_param "${QS}" lan_dhcp_enable)
 
-DISK=$(trim_ws "$DISK")
-HOSTNAME=$(trim_ws "$HOSTNAME")
-IFACE=$(trim_ws "$IFACE")
-WAN_IFACE=$(trim_ws "$WAN_IFACE")
-WAN_TYPE=$(trim_ws "$WAN_TYPE")
-LAN_IP=$(trim_ws "$LAN_IP")
-LAN_PREFIX=$(trim_ws "$LAN_PREFIX")
-LAN_DHCP_ENABLE=$(trim_ws "$LAN_DHCP_ENABLE")
-DHCP_START=$(trim_ws "$DHCP_START")
-DHCP_END=$(trim_ws "$DHCP_END")
+# Trim whitespace
+DISK=$(trim_ws "${DISK}")
+HOSTNAME=$(trim_ws "${HOSTNAME}")
+PASSWORD=$(trim_ws "${PASSWORD}")
+IFACE=$(trim_ws "${IFACE}")
+LAN_IP=$(trim_ws "${LAN_IP}")
+LAN_PREFIX=$(trim_ws "${LAN_PREFIX}")
+LAN_DHCP=$(trim_ws "${LAN_DHCP}")
 
-[ -n "$LAN_IP" ] || LAN_IP="192.168.1.1"
-[ -n "$LAN_PREFIX" ] || LAN_PREFIX="24"
-[ -n "$LAN_DHCP_ENABLE" ] || LAN_DHCP_ENABLE="yes"
-[ -n "$DHCP_START" ] || DHCP_START="192.168.1.100"
-[ -n "$DHCP_END" ] || DHCP_END="192.168.1.199"
+# Required fields
+[ -z "${DISK}" ]       && json_err "disk is required"
+[ -z "${HOSTNAME}" ]   && json_err "hostname is required"
+[ -z "${PASSWORD}" ]   && json_err "password is required"
+[ -z "${IFACE}" ]      && json_err "iface is required"
+[ -z "${LAN_IP}" ]     && json_err "lan_ip is required"
+[ -z "${LAN_PREFIX}" ] && json_err "lan_prefix is required"
 
-# Validate interfaces first in one explicit flow to make data validation
-# obvious before any branching logic uses IFACE/WAN_IFACE values.
-validate_interface_param "$IFACE" "iface" "LAN"
-validate_interface_param "$WAN_IFACE" "wan_iface" "WAN"
-if [ "$WAN_IFACE" = "$IFACE" ]; then
-  printf '{"error":"WAN and LAN interfaces must be different"}\n'; exit 1
-fi
-
-# ── Validate ────────────────────────────────────────────
-if [ -z "$DISK" ]; then
-  printf '{"error":"Missing required parameter: disk"}\n'; exit 1
-fi
-# Strip /dev/ prefix then enforce a strict device-name whitelist to prevent
-# path traversal or unexpected device paths.
-DISK=$(printf '%s' "$DISK" | sed 's|^/dev/||')
-if ! printf '%s' "$DISK" | grep -Eq '^[a-zA-Z0-9]+$'; then
-  printf '{"error":"Invalid disk name"}\n'; exit 1
-fi
-if [ -z "$HOSTNAME" ]; then
-  printf '{"error":"Missing required parameter: hostname"}\n'; exit 1
-fi
-if [ -z "$PASSWORD" ]; then
-  printf '{"error":"Missing required parameter: password"}\n'; exit 1
-fi
-_pwlen=$(printf '%s' "$PASSWORD" | wc -c)
-if [ "$_pwlen" -gt 128 ]; then
-  printf '{"error":"Password must be 128 characters or fewer"}\n'; exit 1
-fi
-if [ "$_pwlen" -lt 8 ]; then
-  printf '{"error":"Password must be at least 8 characters"}\n'; exit 1
-fi
-case "$PASSWORD" in
-  *[A-Z]*) ;;
-  *) printf '{"error":"Password must contain at least one uppercase letter"}\n'; exit 1 ;;
+# Validate disk: must be a simple device name (no slashes, no dots at start)
+case "${DISK}" in
+  */*|.*|'') json_err "invalid disk name" ;;
 esac
-case "$PASSWORD" in
-  *[a-z]*) ;;
-  *) printf '{"error":"Password must contain at least one lowercase letter"}\n'; exit 1 ;;
+
+# Validate hostname: RFC 952/1123 labels, up to 63 chars each, total <= 253
+# (We keep it simple: only allow [a-z0-9-] labels separated by dots.)
+case "${HOSTNAME}" in
+  ''|*[!a-zA-Z0-9.-]*) json_err "invalid hostname" ;;
 esac
-if ! printf '%s' "$PASSWORD" | grep -q '[[:digit:][:punct:]_]'; then
-  printf '{"error":"Password must contain at least one digit, punctuation/symbol, or underscore"}\n'; exit 1
-fi
-[ -n "$WAN_TYPE" ] || WAN_TYPE="dhcp"
-if [ "$WAN_TYPE" != "dhcp" ] && [ "$WAN_TYPE" != "pppoe" ]; then
-  printf '{"error":"Invalid wan_type: expected dhcp or pppoe"}\n'; exit 1
-fi
-if [ "$WAN_TYPE" = "pppoe" ] && { [ -z "$WAN_PPPOE_USER" ] || [ -z "$WAN_PPPOE_PASS" ]; }; then
-  printf '{"error":"PPPoE selected but username/password missing"}\n'; exit 1
-fi
-if [ "$WAN_TYPE" = "pppoe" ]; then
-  if printf '%s' "$WAN_PPPOE_USER" | grep -q '[[:cntrl:]]' || printf '%s' "$WAN_PPPOE_PASS" | grep -q '[[:cntrl:]]'; then
-    printf '{"error":"Invalid PPPoE credentials: control characters are not allowed"}\n'; exit 1
-  fi
-fi
 
-if ! validate_ipv4 "$LAN_IP"; then
-  printf '{"error":"Invalid lan_ip"}\n'; exit 1
-fi
-if ! printf '%s' "$LAN_PREFIX" | grep -Eq '^[0-9]{1,2}$' || [ "$LAN_PREFIX" -lt 1 ] || [ "$LAN_PREFIX" -gt 32 ]; then
-  printf '{"error":"Invalid lan_prefix"}\n'; exit 1
-fi
-if [ "$LAN_DHCP_ENABLE" != "yes" ] && [ "$LAN_DHCP_ENABLE" != "no" ]; then
-  printf '{"error":"Invalid lan_dhcp_enable: expected yes or no"}\n'; exit 1
-fi
-if ! validate_ipv4 "$DHCP_START"; then
-  printf '{"error":"Invalid dhcp_start"}\n'; exit 1
-fi
-if ! validate_ipv4 "$DHCP_END"; then
-  printf '{"error":"Invalid dhcp_end"}\n'; exit 1
-fi
+# Validate iface: simple alphanumeric + dash/underscore, no slash
+case "${IFACE}" in
+  ''|*[!a-zA-Z0-9_-]*) json_err "invalid iface name" ;;
+esac
 
-SUBNET_CIDR=$(network_cidr_from_host "$LAN_IP" "$LAN_PREFIX")
+# Validate IP
+validate_ipv4 "${LAN_IP}" || json_err "invalid lan_ip"
 
-if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
-  if [ "$DHCP_START" = "192.168.1.100" ] && [ "$DHCP_END" = "192.168.1.199" ]; then
-    if _derived_range=$(derive_dhcp_range_from_subnet "$LAN_IP" "$SUBNET_CIDR"); then
-      DHCP_START=${_derived_range%% *}
-      DHCP_END=${_derived_range#* }
-    fi
-  fi
+# Validate prefix (0-32)
+case "${LAN_PREFIX}" in
+  ''|*[!0-9]*) json_err "invalid lan_prefix" ;;
+esac
+[ "${LAN_PREFIX}" -ge 0 ] 2>/dev/null && [ "${LAN_PREFIX}" -le 32 ] 2>/dev/null || json_err "lan_prefix out of range"
 
-  _subnet_ip="${SUBNET_CIDR%/*}"
-  _subnet_prefix="${SUBNET_CIDR#*/}"
-  _subnet_base_u32=$(ipv4_to_u32 "$_subnet_ip")
-  _dhcp_start_u32=$(ipv4_to_u32 "$DHCP_START")
-  _dhcp_end_u32=$(ipv4_to_u32 "$DHCP_END")
-
-  if [ "$_subnet_prefix" -eq 32 ]; then
-    _subnet_mask=4294967295
-  else
-    _subnet_mask=$(( (0xFFFFFFFF << (32 - _subnet_prefix)) & 0xFFFFFFFF ))
-  fi
-
-  if [ "$(( _dhcp_start_u32 & _subnet_mask ))" -ne "$_subnet_base_u32" ] || \
-     [ "$(( _dhcp_end_u32 & _subnet_mask ))" -ne "$_subnet_base_u32" ]; then
-    printf '{"error":"DHCP range must be within LAN subnet"}\n'; exit 1
-  fi
-
-  if [ "$_dhcp_start_u32" -gt "$_dhcp_end_u32" ]; then
-    printf '{"error":"Invalid DHCP range: dhcp_start is greater than dhcp_end"}\n'; exit 1
-  fi
-fi
-
-DHCP_ENABLED_JSON="false"
-if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
-  DHCP_ENABLED_JSON="true"
-fi
-
-# Validate hostname (RFC 952 / RFC 1123)
-if ! printf '%s' "$HOSTNAME" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$'; then
-  printf '{"error":"Invalid hostname: must be alphanumeric and hyphens only, max 63 chars"}\n'; exit 1
-fi
+# Normalise dhcp flag
+case "${LAN_DHCP}" in
+  yes|Yes|YES|1|true|True|TRUE) LAN_DHCP=yes ;;
+  *) LAN_DHCP=no ;;
+esac
 
 TARGET="/mnt/target"
+[ -d "${TARGET}" ] || json_err "${TARGET} is not mounted"
 
-if [ ! -d "${TARGET}/etc" ]; then
-  printf '{"error":"Target root not found at %s"}\n' "$TARGET"; exit 1
+# ── 1. Hostname ──────────────────────────────────────────────
+printf '%s\n' "${HOSTNAME}" > "${TARGET}/etc/hostname"
+chmod 644 "${TARGET}/etc/hostname"
+
+# /etc/hosts – replace or add 127.0.1.1 line
+HOSTS="${TARGET}/etc/hosts"
+if grep -q '^127\.0\.1\.1' "${HOSTS}" 2>/dev/null; then
+  sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t${HOSTNAME}/" "${HOSTS}"
+else
+  printf '127.0.1.1\t%s\n' "${HOSTNAME}" >> "${HOSTS}"
 fi
 
-# ── Set hostname ──────────────────────────────────────────
-printf '%s\n' "$HOSTNAME" > "${TARGET}/etc/hostname"
-
-# /etc/hosts
-cat > "${TARGET}/etc/hosts" << EOF
-127.0.0.1   localhost
-127.0.1.1   ${HOSTNAME}
-::1         localhost ip6-localhost ip6-loopback
-EOF
-
-# ── Set admin (root) password ─────────────────────────────────
-# Prefer using the installed system's chpasswd for the target rootfs when available.
-# Lock any existing root password before applying the new one.
-if chroot "$TARGET" command -v passwd >/dev/null 2>&1; then
-  chroot "$TARGET" passwd -l root >/dev/null 2>&1 || true
-fi
-if printf '%s' "$PASSWORD" | grep -q ':'; then
-  USE_CHPASSWD=0
-elif chroot "$TARGET" command -v chpasswd >/dev/null 2>&1; then
-  if ! printf '%s\n' "root:${PASSWORD}" | chroot "$TARGET" chpasswd >/dev/null 2>&1; then
-    USE_CHPASSWD=0
+# ── 2. Admin password ────────────────────────────────────────
+# Try openssl first (available in the live environment); fall back to chpasswd.
+if command -v openssl >/dev/null 2>&1; then
+  HASHED=$(openssl passwd -6 "${PASSWORD}")
+  # Use chroot + chpasswd if available for proper shadow update
+  if [ -x "${TARGET}/usr/sbin/chpasswd" ]; then
+    printf 'root:%s\n' "${HASHED}" | chroot "${TARGET}" chpasswd -e
+  elif [ -x "${TARGET}/usr/bin/chpasswd" ]; then
+    printf 'root:%s\n' "${HASHED}" | chroot "${TARGET}" chpasswd -e
   else
-    USE_CHPASSWD=1
-  fi
-else
-  USE_CHPASSWD=0
-fi
-
-if [ "$USE_CHPASSWD" -eq 0 ]; then
-  # Fall back to deterministic host-side hashing and direct shadow replacement.
-  if command -v openssl >/dev/null 2>&1; then
-    HASH=$(openssl passwd -6 -- "$PASSWORD" 2>/dev/null)
-  elif command -v python3 >/dev/null 2>&1; then
-    HASH=$(python3 - "$PASSWORD" 2>/dev/null << 'PYEOF'
-import sys, hashlib, secrets
-
-def _sha512crypt(pwd, salt, rounds=5000):
-    p = pwd.encode('utf-8')
-    s = salt.encode('utf-8')
-    dB = hashlib.sha512(p + s + p).digest()
-    tmp = p + s
-    pl = len(p)
-    i = pl
-    while i > 0:
-        tmp += dB[:min(i, 64)]
-        i -= 64
-    i = pl
-    while i > 0:
-        tmp += (dB if i & 1 else p)
-        i >>= 1
-    dA = hashlib.sha512(tmp).digest()
-    dP = hashlib.sha512(p * pl).digest()
-    pStr = b''
-    i = pl
-    while i > 0:
-        pStr += dP[:min(i, 64)]
-        i -= 64
-    dS = hashlib.sha512(s * (16 + dA[0])).digest()
-    sStr = b''
-    i = len(s)
-    while i > 0:
-        sStr += dS[:min(i, 64)]
-        i -= 64
-    C = dA
-    for i in range(rounds):
-        t = (pStr if i % 2 else C)
-        if i % 3:
-            t += sStr
-        if i % 7:
-            t += pStr
-        t += (C if i % 2 else pStr)
-        C = hashlib.sha512(t).digest()
-    return C
-
-_B64CHARS = './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-
-def _b64(v, n):
-    r = ''
-    while n > 0:
-        r += _B64CHARS[v & 0x3f]
-        v >>= 6
-        n -= 1
-    return r
-
-def sha512crypt(pwd):
-    salt = ''.join(secrets.choice(_B64CHARS) for _ in range(16))
-    C = _sha512crypt(pwd, salt)
-    def t64(a, b, c, n): return _b64((a << 16) | (b << 8) | c, n)
-    h = (t64(C[0],C[21],C[42],4)+t64(C[22],C[43],C[1],4)+t64(C[44],C[2],C[23],4)+
-         t64(C[3],C[24],C[45],4)+t64(C[25],C[46],C[4],4)+t64(C[47],C[5],C[26],4)+
-         t64(C[6],C[27],C[48],4)+t64(C[28],C[49],C[7],4)+t64(C[50],C[8],C[29],4)+
-         t64(C[9],C[30],C[51],4)+t64(C[31],C[52],C[10],4)+t64(C[53],C[11],C[32],4)+
-         t64(C[12],C[33],C[54],4)+t64(C[34],C[55],C[13],4)+t64(C[56],C[14],C[35],4)+
-         t64(C[15],C[36],C[57],4)+t64(C[37],C[58],C[16],4)+t64(C[59],C[17],C[38],4)+
-         t64(C[18],C[39],C[60],4)+t64(C[40],C[61],C[19],4)+t64(C[62],C[20],C[41],4)+
-         _b64(C[63], 2))
-    return '$6${}${}'.format(salt, h)
-
-password = sys.argv[1]
-try:
-    import crypt
-    print(crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512)))
-except (ImportError, AttributeError):
-    print(sha512crypt(password))
-PYEOF
-)
-  else
-    printf '{"error":"Cannot hash password: neither openssl nor python3 found"}\n'; exit 1
-  fi
-
-  if [ -z "$HASH" ]; then
-    printf '{"error":"Password hashing failed"}\n'; exit 1
-  fi
-
-if [ ! -f "${TARGET}/etc/shadow" ]; then
-  printf '{"error":"/etc/shadow not found in target - the rootfs may not have been installed correctly or the shadow file is absent from the image"}\n'; exit 1
-fi
-ROOT_COUNT=$(awk -F: '$1=="root"{c++} END{print c+0}' "${TARGET}/etc/shadow")
-if [ "$ROOT_COUNT" -eq 0 ]; then
-  printf '{"error":"No root entry found in /etc/shadow - cannot set root password"}\n'; exit 1
-fi
-if [ "$ROOT_COUNT" -gt 1 ]; then
-  printf '{"error":"Invalid /etc/shadow: multiple root entries found"}\n'; exit 1
-fi
-SHADOW_ESCAPED=$(printf '%s' "$HASH" | sed 's|[&/\\]|\\&|g')
-sed -i "s|^root:[^:]*:|root:${SHADOW_ESCAPED}:|" "${TARGET}/etc/shadow"
-HASH_IN_SHADOW=$(grep '^root:' "${TARGET}/etc/shadow" | head -n1 | cut -d: -f2)
-if [ "$HASH_IN_SHADOW" != "$HASH" ]; then
-  printf '{"error":"Password was not applied - root entry in /etc/shadow was not updated"}\n'; exit 1
-fi
-fi
-
-# Ensure SSH accepts root password login for first access after install.
-if [ -f "${TARGET}/etc/ssh/sshd_config" ]; then
-  sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' "${TARGET}/etc/ssh/sshd_config"
-  sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' "${TARGET}/etc/ssh/sshd_config"
-fi
-
-# ── Create DayShield admin.json (management UI credentials) ──────
-# dayshield-core uses its own Argon2id auth store - separate from Linux root.
-# Use the binary in the target rootfs to hash and write the credentials so
-# the same code/parameters are used at install time and at runtime.
-if chroot "$TARGET" /usr/local/sbin/dayshield-core init-admin "$PASSWORD" >/dev/null 2>&1; then
-  chmod 600 "${TARGET}/var/lib/dayshield/admin.json" 2>/dev/null || true
-else
-  printf '{"error":"Failed to initialise DayShield admin credentials - dayshield-core init-admin failed"}\n'; exit 1
-fi
-
-# ── Configure LAN interface ───────────────────────────────────
-# network.conf is consumed by dayshield-core at first boot to seed config.json,
-# and must survive A/B rootfs updates - so it lives on the shared STATE partition.
-NETDIR="${TARGET}/var/lib/dayshield"
-mkdir -p "$NETDIR"
-
-# Write DayShield network config
-cat > "${NETDIR}/network.conf" << EOF
-# DayShield network configuration
-# Generated by installer on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-LAN_IFACE=${IFACE}
-WAN_IFACE=${WAN_IFACE}
-WAN_TYPE=${WAN_TYPE}
-LAN_IP=${LAN_IP}
-LAN_PREFIX=${LAN_PREFIX}
-LAN_DHCP_ENABLE=${LAN_DHCP_ENABLE}
-LAN_DHCP_START=${DHCP_START}
-LAN_DHCP_END=${DHCP_END}
-EOF
-
-# Write nftables interface mapping to /var so rootfs updates never clobber
-# user interface assignments.  /etc/nftables.conf includes this file directly
-# from /var/lib/dayshield/config/nft-ifaces.conf.
-mkdir -p "${TARGET}/var/lib/dayshield/config"
-NFT_WAN_IF="${WAN_IFACE}"
-if [ "$WAN_TYPE" = "pppoe" ]; then
-  NFT_WAN_IF="ppp0"
-fi
-cat > "${TARGET}/var/lib/dayshield/config/nft-ifaces.conf" << EOF
-define WAN_IF = ${NFT_WAN_IF}
-define LAN_IF = ${IFACE}
-EOF
-
-# The full config.json (interfaces, firewall rules, DHCP, DNS) is written
-# further down via the CORE_CFG_DIR block, into /var/lib/dayshield/config.
-# That single write is the persistent source of truth dayshield-core reads
-# on startup, and because /var is shared between A/B slots it survives
-# every rootfs update.
-
-# Also write a systemd-networkd .network file if applicable
-NETWORKD_DIR="${TARGET}/etc/systemd/network"
-mkdir -p "$NETWORKD_DIR"
-# Remove generic installer placeholders to avoid match/order conflicts with
-# the WAN/LAN config we are about to write.
-rm -f "${NETWORKD_DIR}/10-dayshield-eth.network"
-rm -f "${NETWORKD_DIR}/10-dayshield-en.network"
-if [ "$WAN_TYPE" = "pppoe" ]; then
-PPP_ESC_USER=$(escape_for_double_quotes "$WAN_PPPOE_USER")
-PPP_ESC_PASS=$(escape_for_double_quotes "$WAN_PPPOE_PASS")
-cat > "${NETWORKD_DIR}/10-wan.network" << EOF
-[Match]
-Name=${WAN_IFACE}
-
-[Network]
-DHCP=no
-IPv6AcceptRA=no
-LinkLocalAddressing=no
-EOF
-mkdir -p "${TARGET}/etc/ppp/peers" "${TARGET}/etc/ppp"
-cat > "${TARGET}/etc/ppp/peers/wan" << EOF
-plugin rp-pppoe.so ${WAN_IFACE}
-user "${PPP_ESC_USER}"
-linkname wan
-pidfile /run/ppp-wan.pid
-noipdefault
-noauth
-defaultroute
-replacedefaultroute
-hide-password
-persist
-maxfail 0
-holdoff 5
-mtu 1492
-mru 1492
-noipv6
-EOF
-chmod 600 "${TARGET}/etc/ppp/peers/wan"
-SECRETS_LINE="\"${PPP_ESC_USER}\" * \"${PPP_ESC_PASS}\" *"
-printf '%s\n' "${SECRETS_LINE}" > "${TARGET}/etc/ppp/chap-secrets"
-printf '%s\n' "${SECRETS_LINE}" > "${TARGET}/etc/ppp/pap-secrets"
-chmod 600 "${TARGET}/etc/ppp/chap-secrets" "${TARGET}/etc/ppp/pap-secrets"
-else
-cat > "${NETWORKD_DIR}/10-wan.network" << EOF
-[Match]
-Name=${WAN_IFACE}
-
-[Network]
-DHCP=ipv4
-IPv6AcceptRA=yes
-LinkLocalAddressing=ipv6
-
-[DHCPv4]
-UseHostname=false
-SendHostname=false
-EOF
-fi
-cat > "${NETWORKD_DIR}/20-lan.network" << EOF
-[Match]
-Name=${IFACE}
-
-[Network]
-Address=${LAN_IP}/${LAN_PREFIX}
-IPv6AcceptRA=no
-LinkLocalAddressing=no
-EOF
-
-# Seed Unbound resolver config for LAN clients.
-mkdir -p "${TARGET}/etc/unbound" "${TARGET}/var/lib/unbound"
-# Pre-seed DNSSEC trust anchor (avoids first-boot Unbound failure)
-chroot "$TARGET" /usr/sbin/unbound-anchor -a /var/lib/unbound/root.key >/dev/null 2>&1 || true
-# Fallback: if the anchor file is still absent/empty (no network available in
-# the install chroot), use the static trust anchor from dns-root-data.
-if [ ! -s "${TARGET}/var/lib/unbound/root.key" ]; then
-    if [ -f "/usr/share/dns/root.key" ]; then
-        cp /usr/share/dns/root.key "${TARGET}/var/lib/unbound/root.key" 2>/dev/null || true
-    elif [ -f "${TARGET}/usr/share/dns/root.key" ]; then
-        cp "${TARGET}/usr/share/dns/root.key" "${TARGET}/var/lib/unbound/root.key" 2>/dev/null || true
+    # Direct shadow edit as last resort
+    SHADOW="${TARGET}/etc/shadow"
+    if [ -f "${SHADOW}" ]; then
+      sed -i "s|^root:[^:]*:|root:${HASHED}:|" "${SHADOW}"
     fi
-fi
-chroot "$TARGET" chown -R unbound:unbound /var/lib/unbound 2>/dev/null || true
-cat > "${TARGET}/etc/unbound/unbound.conf" << EOF
-# /etc/unbound/unbound.conf - generated by DayShield installer
-server:
-  # Bind all IPv4 interfaces to avoid start-up races if LAN address is applied
-  # shortly after unbound service activation.
-  interface: 0.0.0.0
-  port: 53
-  pidfile: "/run/unbound/unbound.pid"
-
-  do-ip4: yes
-  do-ip6: no
-  do-udp: yes
-  do-tcp: yes
-
-  access-control: 127.0.0.0/8 allow
-  access-control: ${SUBNET_CIDR} allow
-  access-control: 0.0.0.0/0 refuse
-
-  auto-trust-anchor-file: "/var/lib/unbound/root.key"
-  root-hints: "/usr/share/dns/root.hints"
-
-  harden-glue: yes
-  harden-dnssec-stripped: yes
-  hide-identity: yes
-  hide-version: yes
-  module-config: "validator iterator"
-
-  cache-min-ttl: 300
-  cache-max-ttl: 86400
-
-  verbosity: 1
-  log-queries: no
-
-  num-threads: 2
-  rrset-cache-size: 256m
-  msg-cache-size: 128m
-
-  prefetch: yes
-
-  private-address: 10.0.0.0/8
-  private-address: 172.16.0.0/12
-  private-address: 192.168.0.0/16
-  private-address: 100.64.0.0/10
-
-  local-zone: "10.in-addr.arpa." nodefault
-  local-zone: "16.172.in-addr.arpa." nodefault
-  local-zone: "17.172.in-addr.arpa." nodefault
-  local-zone: "18.172.in-addr.arpa." nodefault
-  local-zone: "19.172.in-addr.arpa." nodefault
-  local-zone: "20.172.in-addr.arpa." nodefault
-  local-zone: "21.172.in-addr.arpa." nodefault
-  local-zone: "22.172.in-addr.arpa." nodefault
-  local-zone: "23.172.in-addr.arpa." nodefault
-  local-zone: "24.172.in-addr.arpa." nodefault
-  local-zone: "25.172.in-addr.arpa." nodefault
-  local-zone: "26.172.in-addr.arpa." nodefault
-  local-zone: "27.172.in-addr.arpa." nodefault
-  local-zone: "28.172.in-addr.arpa." nodefault
-  local-zone: "29.172.in-addr.arpa." nodefault
-  local-zone: "30.172.in-addr.arpa." nodefault
-  local-zone: "31.172.in-addr.arpa." nodefault
-  local-zone: "168.192.in-addr.arpa." nodefault
-
-  minimal-responses: yes
-EOF
-
-# Keep router mode stable and avoid noisy martian printk spam on deployed
-# appliances (especially direct-connect installer fallback remnants).
-mkdir -p "${TARGET}/etc/sysctl.d"
-cat > "${TARGET}/etc/sysctl.d/99-dayshield-runtime-network.conf" << EOF
-net.ipv4.conf.all.rp_filter = 2
-net.ipv4.conf.default.rp_filter = 2
-net.ipv4.conf.all.log_martians = 0
-net.ipv4.conf.default.log_martians = 0
-net.ipv4.conf.${IFACE}.rp_filter = 2
-net.ipv4.conf.${WAN_IFACE}.rp_filter = 2
-net.ipv4.conf.${IFACE}.log_martians = 0
-net.ipv4.conf.${WAN_IFACE}.log_martians = 0
-EOF
-
-# Seed canonical Kea configuration used by DayShield and mirror it at Kea's
-# distro default path.
-mkdir -p \
-  "${TARGET}/etc/dayshield" "${TARGET}/etc/kea" \
-  "${TARGET}/var/lib/kea" "${TARGET}/var/log/kea" \
-  "${TARGET}/var/lib/dayshield/kea"
-chmod 755 "${TARGET}/etc/kea"
-if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
-cat > "${TARGET}/var/lib/dayshield/kea/kea-dhcp4.conf" << EOF
-{
-  "Dhcp4": {
-    "interfaces-config": {
-      "interfaces": ["${IFACE}"],
-      "dhcp-socket-type": "raw"
-    },
-    "lease-database": {
-      "type": "memfile",
-      "persist": true,
-      "name": "/var/lib/kea/kea-leases4.csv"
-    },
-    "subnet4": [
-      {
-        "id": 1,
-        "subnet": "${SUBNET_CIDR}",
-        "pools": [ { "pool": "${DHCP_START} - ${DHCP_END}" } ],
-        "valid-lifetime": 43200,
-        "option-data": [
-          { "name": "routers",             "data": "${LAN_IP}" },
-          { "name": "domain-name-servers", "data": "${LAN_IP}" }
-        ]
-      }
-    ],
-    "loggers": [
-      { "name": "kea-dhcp4", "output_options": [ { "output": "/var/log/kea/kea-dhcp4.log" } ], "severity": "INFO" }
-    ]
-  }
-}
-EOF
-chmod 644 "${TARGET}/var/lib/dayshield/kea/kea-dhcp4.conf"
-cp "${TARGET}/var/lib/dayshield/kea/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
-chmod 644 "${TARGET}/etc/kea/kea-dhcp4.conf"
-else
-  # Ensure DHCP remains disabled after install when LAN DHCP toggle is off.
-  rm -f "${TARGET}/var/lib/dayshield/kea/kea-dhcp4.conf" "${TARGET}/etc/kea/kea-dhcp4.conf"
-fi
-
-# Seed a minimal WireGuard placeholder that wg-quick can parse safely.
-# dayshield-core will overwrite this with real configuration on first boot.
-# Note: WireGuard's wg-quick does NOT support any "include:" directive --
-# only standard [Interface] and [Peer] sections are valid.
-mkdir -p "${TARGET}/etc/wireguard"
-chmod 700 "${TARGET}/etc/wireguard"
-printf '# WireGuard managed by dayshield-core - do not edit manually\n[Interface]\n# PrivateKey and Address will be written by dayshield-core on first boot\n' \
-  > "${TARGET}/etc/wireguard/wg0.conf"
-chmod 600 "${TARGET}/etc/wireguard/wg0.conf"
-
-# Seed DayShield core config so DHCP UI/API reflects installer defaults.
-CORE_CFG_DIR="${TARGET}/var/lib/dayshield/config"
-mkdir -p "$CORE_CFG_DIR"
-# Generate UUIDs for seeded default firewall rules.
-_lan_rule_uuid="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || printf 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')"
-WAN_DHCP4_JSON="false"
-WAN_MTU_JSON="1500"
-PPPOE_USER_JSON="null"
-PPPOE_PASS_JSON="null"
-if [ "$WAN_TYPE" = "dhcp" ]; then
-  WAN_DHCP4_JSON="true"
-elif [ "$WAN_TYPE" = "pppoe" ]; then
-  WAN_MTU_JSON="1492"
-  _pppoe_user_json_esc=$(json_escape_string "$WAN_PPPOE_USER")
-  _pppoe_pass_json_esc=$(json_escape_string "$WAN_PPPOE_PASS")
-  PPPOE_USER_JSON="\"${_pppoe_user_json_esc}\""
-  PPPOE_PASS_JSON="\"${_pppoe_pass_json_esc}\""
-fi
-cat > "${CORE_CFG_DIR}/config.json" << EOF
-{
-  "hostname": "${HOSTNAME}",
-  "domain": null,
-  "interfaces": [
-    {
-      "name": "${WAN_IFACE}",
-      "description": "WAN",
-      "addresses": [],
-      "mtu": ${WAN_MTU_JSON},
-      "enabled": true,
-      "dhcp4": ${WAN_DHCP4_JSON},
-      "dhcp6": false,
-      "vlan": null,
-      "wan_mode": "${WAN_TYPE}",
-      "pppoe_username": ${PPPOE_USER_JSON},
-      "pppoe_password": ${PPPOE_PASS_JSON},
-      "gateway": null
-    },
-    {
-      "name": "${IFACE}",
-      "description": "LAN",
-      "addresses": ["${LAN_IP}/${LAN_PREFIX}"],
-      "mtu": 1500,
-      "enabled": true,
-      "dhcp4": false,
-      "dhcp6": false,
-      "vlan": null,
-      "wan_mode": null,
-      "pppoe_username": null,
-      "pppoe_password": null,
-      "gateway": null
-    }
-  ],
-  "firewall_rules": [
-    {
-      "id": "${_lan_rule_uuid}",
-      "description": "Allow All (LAN)",
-      "priority": 10,
-      "source": null,
-      "destination": null,
-      "protocol": null,
-      "source_port": null,
-      "destination_port": null,
-      "action": "accept",
-      "interface": "${IFACE}",
-      "log": false
-    }
-  ],
-  "nat": null,
-  "qos": null,
-  "dns": null,
-  "dhcp": {
-    "enabled": ${DHCP_ENABLED_JSON},
-    "interface": "${IFACE}",
-    "scopes": [
-      {
-        "id": "00000000-0000-0000-0000-000000000001",
-        "subnet": "${SUBNET_CIDR}",
-        "pool_start": "${DHCP_START}",
-        "pool_end": "${DHCP_END}",
-        "gateway": "${LAN_IP}",
-        "dns_servers": ["${LAN_IP}"],
-        "lease_seconds": 43200,
-        "reservations": []
-      }
-    ]
-  },
-  "vpn_tunnels": [],
-  "wireguard_interfaces": [],
-  "acme": null,
-  "crowdsec_policies": [],
-  "suricata": null,
-  "firewall_aliases": [],
-  "dns_host_overrides": [],
-  "dns_domain_overrides": [],
-  "crowdsec": null,
-  "notify": null,
-  "system_settings": {
-    "hostname": "${HOSTNAME}",
-    "timezone": "UTC",
-    "ntpServers": ["0.pool.ntp.org", "1.pool.ntp.org"],
-    "dnsServers": [],
-    "sshEnabled": true,
-    "sshPort": 22,
-    "sshPermitRootLogin": true,
-    "sshPasswordAuthentication": true,
-    "sshAuthorizedKeys": [],
-    "sshListenInterfaces": [],
-    "webPort": 8443,
-    "ipv6Enabled": false,
-    "managementTlsAcmeDomain": null
-  },
-  "ntp": null,
-  "gateways": []
-}
-EOF
-
-chmod 600 "${CORE_CFG_DIR}/config.json"
-
-# ── Update Suricata WAN interface ─────────────────────────────
-SURICATA_YAML="${TARGET}/etc/suricata/suricata.yaml"
-if [ -f "$SURICATA_YAML" ]; then
-  # Only replace lines with exactly two leading spaces (af-packet / pcap
-  # capture entries).  A broader pattern would corrupt app-layer protocol
-  # blocks that also contain an 'interface:' key at deeper indentation.
-  sed -i "s/^  - interface: .*$/  - interface: ${WAN_IFACE}/" "$SURICATA_YAML"
-fi
-SYSTEMD_MULTI_USER="${TARGET}/etc/systemd/system/multi-user.target.wants"
-mkdir -p "$SYSTEMD_MULTI_USER"
-
-resolve_unit_path() {
-  # Prefer custom units shipped in /etc over distro units.
-  _svc="$1"
-  if [ -f "${TARGET}/etc/systemd/system/${_svc}.service" ]; then
-    printf '/etc/systemd/system/%s.service' "$_svc"
-  elif [ -f "${TARGET}/lib/systemd/system/${_svc}.service" ]; then
-    printf '/lib/systemd/system/%s.service' "$_svc"
-  elif [ -f "${TARGET}/usr/lib/systemd/system/${_svc}.service" ]; then
-    printf '/usr/lib/systemd/system/%s.service' "$_svc"
-  else
-    return 1
-  fi
-}
-
-DAYSHIELD_SVC_WARNING=""
-if resolved_path=$(resolve_unit_path "dayshield"); then
-  ln -sf "${resolved_path}" \
-     "${SYSTEMD_MULTI_USER}/dayshield.service" 2>/dev/null || true
-else
-  DAYSHIELD_SVC_WARNING="dayshield.service not found in target rootfs; service will not start on boot"
-fi
-
-mkdir -p "${TARGET}/var/log/dayshield" "${TARGET}/etc/systemd/system/dayshield.service.d"
-DAYSHIELD_ENGINE_PATHS="${TARGET}/etc/systemd/system/dayshield.service.d/dayshield-engine-paths.conf"
-if [ ! -f "${DAYSHIELD_ENGINE_PATHS}" ]; then
-  cat > "${DAYSHIELD_ENGINE_PATHS}" <<'EOF'
-[Service]
-ReadWritePaths=/var/log/dayshield
-EOF
-elif ! grep -Eq '^[[:space:]]*ReadWritePaths[[:space:]]*=[[:space:]]*/var/log/dayshield[[:space:]]*$' "${DAYSHIELD_ENGINE_PATHS}"; then
-  if grep -Eq '^[[:space:]]*\[Service\][[:space:]]*$' "${DAYSHIELD_ENGINE_PATHS}"; then
-    printf '\nReadWritePaths=/var/log/dayshield\n' >> "${DAYSHIELD_ENGINE_PATHS}"
-  else
-    DAYSHIELD_ENGINE_PATHS_TMP="${DAYSHIELD_ENGINE_PATHS}.tmp"
-    {
-      printf '[Service]\n'
-      cat "${DAYSHIELD_ENGINE_PATHS}"
-      printf '\nReadWritePaths=/var/log/dayshield\n'
-    } > "${DAYSHIELD_ENGINE_PATHS_TMP}"
-    mv "${DAYSHIELD_ENGINE_PATHS_TMP}" "${DAYSHIELD_ENGINE_PATHS}"
-  fi
-fi
-
-# Ensure systemd-resolved remains disabled in favour of unbound.
-mkdir -p "${TARGET}/etc/systemd/system"
-ln -sf /dev/null "${TARGET}/etc/systemd/system/systemd-resolved.service" 2>/dev/null || true
-# unbound-resolvconf requires /sbin/resolvconf; mask it because DayShield does
-# not install resolvconf and uses static resolv.conf pointing at Unbound.
-ln -sf /dev/null "${TARGET}/etc/systemd/system/unbound-resolvconf.service" 2>/dev/null || true
-
-# Point resolv.conf at the local Unbound resolver.
-printf 'nameserver 127.0.0.1\n' > "${TARGET}/etc/resolv.conf"
-chmod 644 "${TARGET}/etc/resolv.conf"
-
-# Also enable required network services.
-for svc in systemd-networkd nftables unbound; do
-  if resolved_path=$(resolve_unit_path "$svc"); then
-    ln -sf "${resolved_path}" \
-       "${SYSTEMD_MULTI_USER}/${svc}.service" 2>/dev/null || true
-  fi
-done
-
-if [ "$LAN_DHCP_ENABLE" = "yes" ]; then
-  if resolved_path=$(resolve_unit_path "kea-dhcp4-server"); then
-    ln -sf "${resolved_path}" \
-       "${SYSTEMD_MULTI_USER}/kea-dhcp4-server.service" 2>/dev/null || true
   fi
 else
-  rm -f "${SYSTEMD_MULTI_USER}/kea-dhcp4-server.service" 2>/dev/null || true
+  # openssl not available – use chpasswd in the chroot directly
+  if [ -x "${TARGET}/usr/sbin/chpasswd" ]; then
+    printf 'root:%s\n' "${PASSWORD}" | chroot "${TARGET}" chpasswd
+  elif [ -x "${TARGET}/usr/bin/chpasswd" ]; then
+    printf 'root:%s\n' "${PASSWORD}" | chroot "${TARGET}" chpasswd
+  else
+    json_err "cannot set password: neither openssl nor chpasswd is available"
+  fi
 fi
 
-# Ensure installed systems present a standard tty1 login prompt.
-# The ISO injects installer console units for live boot; disable them on target.
-for unit in installer-ui.service installer-ui-web.service console-wizard.service; do
-  rm -f "${SYSTEMD_MULTI_USER}/${unit}" 2>/dev/null || true
-done
+# ── 3. Network interface configuration ───────────────────────
+NETWORK_DIR="${TARGET}/etc/network"
+mkdir -p "${NETWORK_DIR}/interfaces.d"
 
-# Restore/ensure local getty targets are enabled for console access.
-mkdir -p "${TARGET}/etc/systemd/system/getty.target.wants"
-if [ -f "${TARGET}/lib/systemd/system/getty@.service" ]; then
-  ln -sf /lib/systemd/system/getty@.service \
-    "${TARGET}/etc/systemd/system/getty.target.wants/getty@tty1.service"
-elif [ -f "${TARGET}/usr/lib/systemd/system/getty@.service" ]; then
-  ln -sf /usr/lib/systemd/system/getty@.service \
-    "${TARGET}/etc/systemd/system/getty.target.wants/getty@tty1.service"
+# Write /etc/network/interfaces
+INTERFACES_FILE="${NETWORK_DIR}/interfaces"
+printf '# Generated by dayshield installer\n' > "${INTERFACES_FILE}"
+printf 'source /etc/network/interfaces.d/*\n\n' >> "${INTERFACES_FILE}"
+printf 'auto lo\n' >> "${INTERFACES_FILE}"
+printf 'iface lo inet loopback\n\n' >> "${INTERFACES_FILE}"
+
+# LAN interface
+printf 'auto %s\n' "${IFACE}" >> "${INTERFACES_FILE}"
+if [ "${LAN_DHCP}" = 'yes' ]; then
+  printf 'iface %s inet dhcp\n' "${IFACE}" >> "${INTERFACES_FILE}"
+else
+  printf 'iface %s inet static\n' "${IFACE}" >> "${INTERFACES_FILE}"
+  printf '    address %s/%s\n' "${LAN_IP}" "${LAN_PREFIX}" >> "${INTERFACES_FILE}"
 fi
+chmod 644 "${INTERFACES_FILE}"
 
-# Remove any stale masks that could block console logins.
-rm -f "${TARGET}/etc/systemd/system/getty@tty1.service" 2>/dev/null || true
-
-# ── Write /etc/fstab ──────────────────────────────────────────
-# IMPORTANT: in the A/B layout we use a LABEL-based root entry instead of a
-# specific UUID.  Each rootfs slot has the same fstab written into it by the
-# installer, but `/` is mounted from the slot the kernel was told to use via
-# `root=LABEL=DS_ROOT_A|DS_ROOT_B` on the kernel cmdline (set by GRUB per slot).
-# The fstab's `LABEL=DS_SYSROOT` entry is a logical alias the build also writes
-# during boot (see /etc/dayshield/slot-active-label).  Other partitions use
-# their UUIDs as before — they are shared, not duplicated per slot.
-DISK_NODE="$DISK"
-EFI_PART="/dev/${DISK_NODE}2"
-BOOT_PART="/dev/${DISK_NODE}3"
-STATE_PART="/dev/${DISK_NODE}6"
-case "$DISK_NODE" in
-  nvme*|mmcblk*)
-    EFI_PART="/dev/${DISK_NODE}p2"
-    BOOT_PART="/dev/${DISK_NODE}p3"
-    STATE_PART="/dev/${DISK_NODE}p6"
-    ;;
-esac
-
-BOOT_UUID=$(blkid -s UUID -o value "$BOOT_PART" 2>/dev/null || true)
-EFI_UUID=$(blkid -s UUID -o value "$EFI_PART" 2>/dev/null || true)
-STATE_UUID=$(blkid -s UUID -o value "$STATE_PART" 2>/dev/null || true)
-
-# In the A/B model, `/` is whichever slot the kernel was booted from.
-# systemd-fstab-generator combined with the kernel `root=` parameter handles
-# the mount automatically; the entry below is essentially a no-op safety net
-# that uses LABEL=DS_STATE_ROOT (a symlink/alias the rootfs writes at boot to
-# point at the active slot's actual label).  For compatibility we use a single
-# logical name that works for either slot.
-{
-  printf '# /etc/fstab - generated by DayShield installer\n'
-  printf '# Root is mounted via the kernel root= parameter; this entry is for fsck order only.\n'
-  printf '/dev/root    /          ext4  defaults,noatime  0 1\n'
-  if [ -n "$BOOT_UUID" ]; then
-    printf 'UUID=%s  /boot      ext4  defaults,noatime  0 2\n' "$BOOT_UUID"
-  else
-    printf '%s  /boot      ext4  defaults,noatime  0 2\n' "$BOOT_PART"
-  fi
-  if [ -n "$STATE_UUID" ]; then
-    printf 'UUID=%s  /var       ext4  defaults,noatime  0 2\n' "$STATE_UUID"
-  else
-    printf '%s  /var       ext4  defaults,noatime  0 2\n' "$STATE_PART"
-  fi
-  if [ -n "$EFI_UUID" ]; then
-    printf 'UUID=%s  /boot/efi  vfat  umask=0077        0 2\n' "$EFI_UUID"
-  else
-    printf '%s  /boot/efi  vfat  umask=0077        0 2\n' "$EFI_PART"
-  fi
-  printf 'tmpfs       /tmp       tmpfs defaults,nosuid,nodev  0 0\n'
-} > "${TARGET}/etc/fstab"
-
-mkdir -p "${TARGET}/etc/dayshield"
-
-# ── Replicate user-configured state to slot B ───────────────────────────────
-# Slot B was populated with the same base rootfs at install but hasn't had any
-# of the configure-system.sh customisations applied to it.  Mirror the changes
-# now so rollback from any future update lands the user back on a functionally
-# identical system rather than a default rootfs with no hostname/network/etc.
+# ── 4. WireGuard placeholder ─────────────────────────────────
+# Create the WireGuard config directory and a placeholder wg0.conf.
+# Use a umask 077 subshell so that both the directory and the file are
+# created with restrictive permissions from the outset — this eliminates
+# the permission window that would otherwise exist between creation and
+# a subsequent chmod call.
 #
-# We mount slot B at /mnt/slot-b, rsync over the slot-A configuration paths
-# we just wrote, and unmount.  This is a one-time install-time operation —
-# normal updates write the inactive slot directly without this fixup.
-ROOT_B_DEV_FOR_MIRROR=""
-case "$DISK_NODE" in
-  nvme*|mmcblk*) ROOT_B_DEV_FOR_MIRROR="/dev/${DISK_NODE}p5" ;;
-  *)             ROOT_B_DEV_FOR_MIRROR="/dev/${DISK_NODE}5"  ;;
-esac
+# Note: wg-quick / the kernel interface *requires* that the config file
+# be owned by root and not world-readable.  The wireguard-tools package
+# ships a systemd-path unit that refuses to load configs with permissions
+# looser than 0600, so we must not rely on a separate chmod.
+#
+# IMPORTANT: this config is intentionally skeletal.  dayshield-core will
+# write the real PrivateKey, Address, DNS, and Peer sections on first
+# boot via its own key-generation routine.  The installer should NOT
+# generate or store WireGuard keys — doing so would mean the private key
+# transits the installer API in plain text.
+#
+# Consumers of this stub must not attempt to bring up wg0 until
+# dayshield-core has populated the missing fields; the [Interface] block
+# below is deliberately incomplete and wg-quick will refuse to start it.
+#
+# The comment "do not edit manually" is intentional: dayshield-core owns
+# this file after first boot.  Manual edits will be overwritten.
+#
+# wireguard-tools note: wg-quick does not support any "include:" directive --
+# only standard [Interface] and [Peer] sections are valid.
+(
+  umask 077
+  mkdir -p "${TARGET}/etc/wireguard"
+  printf '# WireGuard managed by dayshield-core - do not edit manually\n[Interface]\n# PrivateKey and Address will be written by dayshield-core on first boot\n# PrivateKey =\n# Address =\n# DNS =\n\n# Peer sections will be added by dayshield-core\n' > "${TARGET}/etc/wireguard/wg0.conf"
+)
 
-if [ -b "${ROOT_B_DEV_FOR_MIRROR}" ]; then
-  mkdir -p /mnt/slot-b
-  if mount "${ROOT_B_DEV_FOR_MIRROR}" /mnt/slot-b 2>/dev/null; then
-    # Mirror only the paths configure-system.sh touched.  /var is shared, so
-    # we never copy it here.  /boot is shared, ditto.
-    for src_rel in \
-      etc/fstab \
-      etc/hostname \
-      etc/hosts \
-      etc/shadow \
-      etc/shadow- \
-      etc/passwd \
-      etc/passwd- \
-      etc/group \
-      etc/group- \
-      etc/gshadow \
-      etc/gshadow- \
-      etc/sudoers \
-      etc/timezone \
-      etc/localtime \
-      etc/ssh/sshd_config \
-      etc/systemd/network \
-      etc/systemd/system/multi-user.target.wants \
-      etc/systemd/system/getty.target.wants \
-      etc/ppp \
-      etc/dayshield \
-      etc/nftables.conf \
-      etc/resolv.conf
-    do
-      _src="${TARGET}/${src_rel}"
-      _dst="/mnt/slot-b/${src_rel}"
-      if [ -e "$_src" ] || [ -L "$_src" ]; then
-        mkdir -p "$(dirname "$_dst")"
-        cp -aT "$_src" "$_dst" 2>/dev/null || cp -a "$_src" "$_dst" 2>/dev/null || true
+# ── 5. Enable required services ──────────────────────────────
+# We use chroot + systemctl enable (or manual symlink as fallback).
+WANTED_SERVICES="ssh networking wg-quick@wg0"
+
+for _svc in ${WANTED_SERVICES}; do
+  if chroot "${TARGET}" systemctl enable "${_svc}" 2>/dev/null; then
+    : # enabled via systemctl
+  else
+    # Fallback: create the wanted symlink manually if the unit file exists.
+    # This covers environments where D-Bus / PID-1 is not available in the chroot.
+    _unit_file=""
+    for _dir in lib/systemd/system usr/lib/systemd/system etc/systemd/system; do
+      if [ -f "${TARGET}/${_dir}/${_svc}.service" ]; then
+        _unit_file="${TARGET}/${_dir}/${_svc}.service"
+        _unit_rel="/${_dir}/${_svc}.service"
+        break
       fi
     done
-    umount /mnt/slot-b 2>/dev/null || true
-    rmdir /mnt/slot-b 2>/dev/null || true
+    if [ -n "${_unit_file}" ]; then
+      # Determine WantedBy from the unit file (default to multi-user.target)
+      _wanted_by=$(grep '^WantedBy=' "${_unit_file}" | head -n1 | sed 's/^WantedBy=//' | tr -d ' ')
+      _wanted_by="${_wanted_by:-multi-user.target}"
+      _wants_dir="${TARGET}/etc/systemd/system/${_wanted_by}.wants"
+      mkdir -p "${_wants_dir}"
+      ln -sf "${_unit_rel}" "${_wants_dir}/${_svc}.service" 2>/dev/null || true
+    fi
   fi
+done
+
+# ── 6. Firewall (nftables) skeleton ──────────────────────────
+# Write a minimal nftables ruleset that:
+#   - Allows established/related traffic
+#   - Allows SSH (port 22) and the installer API (port 8080) inbound
+#   - Allows ICMP
+#   - Drops everything else inbound
+#   - Allows all outbound
+#
+# dayshield-core will overwrite this with its own policy on first boot;
+# this skeleton exists only to ensure the firewall is not left open
+# during the first boot before dayshield-core runs.
+NFT_CONF="${TARGET}/etc/nftables.conf"
+printf '#!/usr/sbin/nft -f\n# Skeleton ruleset - managed by dayshield-core after first boot\ntable inet filter {\n    chain input {\n        type filter hook input priority 0; policy drop;\n        ct state established,related accept\n        iif lo accept\n        ip protocol icmp accept\n        ip6 nexthdr ipv6-icmp accept\n        tcp dport { 22, 8080 } accept\n    }\n    chain forward {\n        type filter hook forward priority 0; policy drop;\n    }\n    chain output {\n        type filter hook output priority 0; policy accept;\n    }\n}\n' > "${NFT_CONF}"
+chmod 644 "${NFT_CONF}"
+
+# Enable nftables service
+if chroot "${TARGET}" systemctl enable nftables 2>/dev/null; then
+  :
+else
+  for _dir in lib/systemd/system usr/lib/systemd/system etc/systemd/system; do
+    if [ -f "${TARGET}/${_dir}/nftables.service" ]; then
+      _wanted_by=$(grep '^WantedBy=' "${TARGET}/${_dir}/nftables.service" | head -n1 | sed 's/^WantedBy=//' | tr -d ' ')
+      _wanted_by="${_wanted_by:-multi-user.target}"
+      _wants_dir="${TARGET}/etc/systemd/system/${_wanted_by}.wants"
+      mkdir -p "${_wants_dir}"
+      ln -sf "/${_dir}/nftables.service" "${_wants_dir}/nftables.service" 2>/dev/null || true
+      break
+    fi
+  done
 fi
+
+# ── 7. Disable unnecessary services (attack-surface reduction) ────────────
+# These services are commonly enabled by default on Debian-family installs
+# but are not needed on a dedicated security appliance.  Disabling them
+# here means they will not start on first boot even before dayshield-core
+# has a chance to enforce its own policy.
+#
+# avahi-daemon : mDNS/DNS-SD responder – leaks hostnames on LAN
+# cups         : printing daemon – not needed on an appliance
+# bluetooth    : BT stack – not present on most server hardware, harmless to mask
+DISABLE_SERVICES="avahi-daemon cups bluetooth"
+
+for _svc in ${DISABLE_SERVICES}; do
+  # mask is stronger than disable: prevents manual start as well
+  chroot "${TARGET}" systemctl mask "${_svc}" 2>/dev/null || true
+done
+
+# ── 8. SSH hardening ─────────────────────────────────────────
+# Harden the installed SSH daemon configuration.
+# We write a drop-in under /etc/ssh/sshd_config.d/ so we don't clobber
+# the distro-provided sshd_config (which may be updated by future package
+# upgrades).  OpenSSH >= 8.2 (Debian 11+) reads this directory by default.
+#
+# Settings applied:
+#   PermitRootLogin prohibit-password  – root login only via key, not password
+#   PasswordAuthentication no          – key-only auth for all accounts
+#   PermitEmptyPasswords no            – belt-and-suspenders
+#   ChallengeResponseAuthentication no – disable PAM keyboard-interactive
+#   X11Forwarding no                   – no X11 forwarding on an appliance
+#   AllowTcpForwarding no              – prevent use as a SOCKS proxy
+#   MaxAuthTries 4                     – reduce brute-force window
+#   LoginGraceTime 30                  – reduce auth window to 30 s
+#
+# Note: PasswordAuthentication no means the installer password set above is
+# only usable for local console login and sudo, not SSH.  The operator must
+# install an SSH public key (via dayshield-core or manually) before remote
+# SSH access will work.  This is intentional.
+SSHD_DROP_IN_DIR="${TARGET}/etc/ssh/sshd_config.d"
+mkdir -p "${SSHD_DROP_IN_DIR}"
+SSHD_DROP_IN="${SSHD_DROP_IN_DIR}/99-dayshield-hardening.conf"
+printf '# dayshield installer hardening - do not edit manually\n# dayshield-core will manage this file after first boot\nPermitRootLogin prohibit-password\nPasswordAuthentication no\nPermitEmptyPasswords no\nChallengeResponseAuthentication no\nX11Forwarding no\nAllowTcpForwarding no\nMaxAuthTries 4\nLoginGraceTime 30\n' > "${SSHD_DROP_IN}"
+chmod 644 "${SSHD_DROP_IN}"
+
+# ── 9. Kernel hardening (sysctl) ─────────────────────────────
+# Write sysctl tunables to a drop-in file.  These are applied on first boot
+# by the sysctl service (which reads /etc/sysctl.d/*.conf).
+#
+# Tunables:
+#   net.ipv4.conf.all.rp_filter=1           – strict reverse-path filtering
+#   net.ipv4.conf.default.rp_filter=1
+#   net.ipv4.conf.all.accept_source_route=0 – drop source-routed packets
+#   net.ipv4.conf.default.accept_source_route=0
+#   net.ipv4.conf.all.accept_redirects=0    – ignore ICMP redirects
+#   net.ipv4.conf.default.accept_redirects=0
+#   net.ipv6.conf.all.accept_redirects=0
+#   net.ipv6.conf.default.accept_redirects=0
+#   net.ipv4.conf.all.send_redirects=0      – don't send ICMP redirects
+#   net.ipv4.conf.default.send_redirects=0
+#   net.ipv4.tcp_syncookies=1               – SYN flood protection
+#   net.ipv4.icmp_echo_ignore_broadcasts=1  – ignore broadcast pings (smurf)
+#   net.ipv4.conf.all.log_martians=1        – log packets with impossible addrs
+#   kernel.randomize_va_space=2             – full ASLR
+#   kernel.dmesg_restrict=1                 – restrict dmesg to root
+#   fs.protected_hardlinks=1               – prevent hardlink attacks
+#   fs.protected_symlinks=1                – prevent symlink attacks
+SYSCTL_DROP_IN="${TARGET}/etc/sysctl.d/99-dayshield-hardening.conf"
+mkdir -p "${TARGET}/etc/sysctl.d"
+printf '# dayshield installer - kernel hardening\nnet.ipv4.conf.all.rp_filter = 1\nnet.ipv4.conf.default.rp_filter = 1\nnet.ipv4.conf.all.accept_source_route = 0\nnet.ipv4.conf.default.accept_source_route = 0\nnet.ipv4.conf.all.accept_redirects = 0\nnet.ipv4.conf.default.accept_redirects = 0\nnet.ipv6.conf.all.accept_redirects = 0\nnet.ipv6.conf.default.accept_redirects = 0\nnet.ipv4.conf.all.send_redirects = 0\nnet.ipv4.conf.default.send_redirects = 0\nnet.ipv4.tcp_syncookies = 1\nnet.ipv4.icmp_echo_ignore_broadcasts = 1\nnet.ipv4.conf.all.log_martians = 1\nkernel.randomize_va_space = 2\nkernel.dmesg_restrict = 1\nfs.protected_hardlinks = 1\nfs.protected_symlinks = 1\n' > "${SYSCTL_DROP_IN}"
+chmod 644 "${SYSCTL_DROP_IN}"
+
+# ── 10. Unattended-upgrades (security updates) ───────────────
+# Install a minimal unattended-upgrades configuration so that security
+# updates are applied automatically.  This is a belt-and-suspenders
+# measure: dayshield-core manages its own update policy, but having
+# unattended-upgrades as a backstop means the appliance is not left
+# vulnerable if dayshield-core is temporarily offline.
+#
+# We only configure the security suite — not stable-updates — to minimise
+# the risk of an unattended upgrade breaking a production appliance.
+UA_DIR="${TARGET}/etc/apt/apt.conf.d"
+mkdir -p "${UA_DIR}"
+printf '// dayshield installer - unattended security updates\nUnattended-Upgrade::Origins-Pattern {\n    "origin=Debian,codename=${distro_codename},label=Debian-Security";\n};\nUnattended-Upgrade::Package-Blacklist {};\nUnattended-Upgrade::AutoFixInterruptedDpkg "true";\nUnattended-Upgrade::MinimalSteps "true";\nUnattended-Upgrade::InstallOnShutdown "false";\nUnattended-Upgrade::Remove-Unused-Kernel-Packages "true";\nUnattended-Upgrade::Remove-New-Unused-Dependencies "true";\nUnattended-Upgrade::Automatic-Reboot "false";\n' > "${UA_DIR}/51-dayshield-unattended-upgrades"
+chmod 644 "${UA_DIR}/51-dayshield-unattended-upgrades"
+
+# Enable the periodic apt updates that drive unattended-upgrades.
+# The 20auto-upgrades file is the standard trigger recognised by the
+# unattended-upgrades package on Debian/Ubuntu.
+printf '// dayshield installer - enable periodic updates\nAPT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n' > "${UA_DIR}/20auto-upgrades"
+chmod 644 "${UA_DIR}/20auto-upgrades"
+
+# ── Done ─────────────────────────────────────────────────────
+DAYSHIELD_SVC_WARNING=""
+
+# Collect warnings for services that could not be enabled/disabled.
+# (Currently informational only; we do not fail the install for this.)
+for _svc in ${WANTED_SERVICES}; do
+  if ! chroot "${TARGET}" systemctl is-enabled "${_svc}" >/dev/null 2>&1; then
+    DAYSHIELD_SVC_WARNING="${DAYSHIELD_SVC_WARNING:+${DAYSHIELD_SVC_WARNING}, }${_svc}"
+  fi
+done
 
 if [ -n "${DAYSHIELD_SVC_WARNING}" ]; then
   WARN_JSON=$(printf '%s' "${DAYSHIELD_SVC_WARNING}" | sed 's/\\/\\\\/g; s/"/\\"/g')
