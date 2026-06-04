@@ -72,8 +72,9 @@ _open_installer_port
 
 # Bring the interface up and assign the fixed installer address.
 ip link set "$IFACE" up >/dev/null 2>&1 || true
-if ! ip -4 addr show dev "$IFACE" 2>/dev/null | grep -qF "192.168.50.1/24"; then
-  ip -4 addr add "$INSTALLER_IP" dev "$IFACE" >/dev/null 2>&1 || true
+if ! ip -4 addr show dev "$IFACE" 2>/dev/null | grep -qF "${INSTALLER_IP}"; then
+  ip -4 addr add "$INSTALLER_IP" dev "$IFACE" >/dev/null 2>&1 || \
+      ip -4 addr replace "$INSTALLER_IP" dev "$IFACE" >/dev/null 2>&1 || true
 fi
 
 exit 0

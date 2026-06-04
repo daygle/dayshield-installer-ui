@@ -65,6 +65,45 @@ EOF
   return 0
 }
 
+prefix_to_netmask() {
+  case "$1" in
+    0)  printf '0.0.0.0' ;;
+    1)  printf '128.0.0.0' ;;
+    2)  printf '192.0.0.0' ;;
+    3)  printf '224.0.0.0' ;;
+    4)  printf '240.0.0.0' ;;
+    5)  printf '248.0.0.0' ;;
+    6)  printf '252.0.0.0' ;;
+    7)  printf '254.0.0.0' ;;
+    8)  printf '255.0.0.0' ;;
+    9)  printf '255.128.0.0' ;;
+    10) printf '255.192.0.0' ;;
+    11) printf '255.224.0.0' ;;
+    12) printf '255.240.0.0' ;;
+    13) printf '255.248.0.0' ;;
+    14) printf '255.252.0.0' ;;
+    15) printf '255.254.0.0' ;;
+    16) printf '255.255.0.0' ;;
+    17) printf '255.255.128.0' ;;
+    18) printf '255.255.192.0' ;;
+    19) printf '255.255.224.0' ;;
+    20) printf '255.255.240.0' ;;
+    21) printf '255.255.248.0' ;;
+    22) printf '255.255.252.0' ;;
+    23) printf '255.255.254.0' ;;
+    24) printf '255.255.255.0' ;;
+    25) printf '255.255.255.128' ;;
+    26) printf '255.255.255.192' ;;
+    27) printf '255.255.255.224' ;;
+    28) printf '255.255.255.240' ;;
+    29) printf '255.255.255.248' ;;
+    30) printf '255.255.255.252' ;;
+    31) printf '255.255.255.254' ;;
+    32) printf '255.255.255.255' ;;
+    *) return 1 ;;
+  esac
+}
+
 json_err() {
   _msg=$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')
   printf '{"error":"%s"}\n' "${_msg}"
@@ -200,8 +239,10 @@ printf 'auto %s\n' "${IFACE}" >> "${INTERFACES_FILE}"
 if [ "${LAN_DHCP}" = 'yes' ]; then
   printf 'iface %s inet dhcp\n' "${IFACE}" >> "${INTERFACES_FILE}"
 else
+  LAN_NETMASK=$(prefix_to_netmask "${LAN_PREFIX}") || json_err "invalid lan_prefix"
   printf 'iface %s inet static\n' "${IFACE}" >> "${INTERFACES_FILE}"
-  printf '    address %s/%s\n' "${LAN_IP}" "${LAN_PREFIX}" >> "${INTERFACES_FILE}"
+  printf '    address %s\n' "${LAN_IP}" >> "${INTERFACES_FILE}"
+  printf '    netmask %s\n' "${LAN_NETMASK}" >> "${INTERFACES_FILE}"
 fi
 chmod 644 "${INTERFACES_FILE}"
 
