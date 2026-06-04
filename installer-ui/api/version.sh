@@ -13,7 +13,7 @@ printf '\r\n'
 VERSION_FILE="/etc/dayshield/version"
 
 if [ -f "${VERSION_FILE}" ]; then
-  ver=$(cat "${VERSION_FILE}" | tr -d '[:space:]')
+  ver=$(tr -d '[:space:]' < "${VERSION_FILE}")
 else
   ver="unknown"
 fi

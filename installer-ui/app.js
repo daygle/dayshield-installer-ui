@@ -635,9 +635,12 @@ function installer() {
             await this.callApi('reboot');
           } catch (e) {
             // Reboot kills the server; network error is expected.
-            // If the request fails before reboot starts, show the error.
+            // If the request fails before reboot starts, show the error and
+            // reset pending state so the user can try again.
             if (!/network error/i.test(e.message)) {
               this.error = e.message;
+              this.rebootPending = false;
+              this.rebootCountdown = 10;
             }
           }
           return;

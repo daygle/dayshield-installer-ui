@@ -298,15 +298,21 @@ while true; do
       case "$CONFIRM" in
         y|yes)
           printf '  Powering off...\n'
+          powered_off=false
           if command -v systemctl >/dev/null 2>&1; then
-            systemctl poweroff >/dev/null 2>&1 || true
+            systemctl poweroff >/dev/null 2>&1 && powered_off=true || true
           fi
-          if command -v poweroff >/dev/null 2>&1; then
-            poweroff >/dev/null 2>&1 || true
+          if [ "$powered_off" != true ] && command -v poweroff >/dev/null 2>&1; then
+            poweroff >/dev/null 2>&1 && powered_off=true || true
           fi
-          printf '  ERROR: poweroff command failed.\n'
-          printf '  Press Enter to return to menu...'
-          read -r _ 2>/dev/null || true
+          if [ "$powered_off" != true ] && command -v shutdown >/dev/null 2>&1; then
+            shutdown -h now >/dev/null 2>&1 && powered_off=true || true
+          fi
+          if [ "$powered_off" != true ]; then
+            printf '  ERROR: poweroff command failed.\n'
+            printf '  Press Enter to return to menu...'
+            read -r _ 2>/dev/null || true
+          fi
           continue
           ;;
         *)
