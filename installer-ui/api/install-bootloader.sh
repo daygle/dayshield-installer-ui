@@ -243,7 +243,4 @@ GRUB_TERMINAL_INPUT=console
 GRUB_DISABLE_OS_PROBER=true
 EOF
 
-# Mask 09_dayshield (legacy single-rootfs entry) if it exists.
-rm -f "${TARGET}/etc/grub.d/09_dayshield" 2>/dev/null || true
-
 json_ok "$warning"
