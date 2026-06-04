@@ -280,23 +280,19 @@ printf 'source /etc/network/interfaces.d/*\n\n' >> "${INTERFACES_FILE}"
 printf 'auto lo\n' >> "${INTERFACES_FILE}"
 printf 'iface lo inet loopback\n\n' >> "${INTERFACES_FILE}"
 
-# LAN interface
+# LAN interface — always static; lan_dhcp_enable controls the DHCP server, not this interface
+LAN_NETMASK=$(prefix_to_netmask "${LAN_PREFIX}") || json_err "invalid lan_prefix"
 printf 'auto %s\n' "${IFACE}" >> "${INTERFACES_FILE}"
-if [ "${LAN_DHCP}" = 'yes' ]; then
-  printf 'iface %s inet dhcp\n' "${IFACE}" >> "${INTERFACES_FILE}"
-else
-  LAN_NETMASK=$(prefix_to_netmask "${LAN_PREFIX}") || json_err "invalid lan_prefix"
-  printf 'iface %s inet static\n' "${IFACE}" >> "${INTERFACES_FILE}"
-  printf '    address %s\n' "${LAN_IP}" >> "${INTERFACES_FILE}"
-  printf '    netmask %s\n' "${LAN_NETMASK}" >> "${INTERFACES_FILE}"
-fi
+printf 'iface %s inet static\n' "${IFACE}" >> "${INTERFACES_FILE}"
+printf '    address %s\n' "${LAN_IP}" >> "${INTERFACES_FILE}"
+printf '    netmask %s\n' "${LAN_NETMASK}" >> "${INTERFACES_FILE}"
 chmod 644 "${INTERFACES_FILE}"
 
 # ── 3a. DayShield installed runtime finalization ─────────────
 SHARED_FINALIZER="${TARGET}/usr/local/lib/dayshield/installer-finalize.sh"
 if [ -x "${SHARED_FINALIZER}" ]; then
   if ! chroot "${TARGET}" /usr/local/lib/dayshield/installer-finalize.sh \
-      "${TARGET}" "${HOSTNAME}" "${PASSWORD}" "${WAN_IFACE}" "${WAN_TYPE}" \
+      / "${HOSTNAME}" "${PASSWORD}" "${WAN_IFACE}" "${WAN_TYPE}" \
       "${WAN_PPPOE_USER}" "${WAN_PPPOE_PASS}" "${IFACE}" "${LAN_IP}" \
       "${LAN_PREFIX}" "${DHCP_START}" "${DHCP_END}" >/dev/null 2>&1; then
     json_err "installer runtime finalization failed"

@@ -36,15 +36,14 @@ decode_urlencoded() {
     }'
 }
 
-extract_query_param() {
-  printf '%s' "$1" | sed 's/.*disk=\([^&]*\).*/\1/'
+query_param() {
+  printf '%s' "$1" | tr '&' '\n' | sed -n "s/^$2=//p" | head -n1
 }
 
 # ── Parse CGI query string ────────────────────────────────────────
 DISK=""
 if [ -n "${QUERY_STRING:-}" ]; then
-  DISK=$(extract_query_param "$QUERY_STRING")
-  DISK=$(decode_urlencoded "$DISK")
+  DISK=$(decode_urlencoded "$(query_param "$QUERY_STRING" disk)")
 fi
 
 if [ -z "$DISK" ]; then
@@ -98,7 +97,7 @@ fi
 sync
 
 # ── Unmount bind-mounts (set up by install-bootloader.sh) ────────
-for fs in dev/pts dev sys proc; do
+for fs in dev/pts dev sys proc run; do
   MP="${TARGET}/${fs}"
   if mountpoint -q "$MP" 2>/dev/null; then
     umount -l "$MP" 2>/dev/null || true
