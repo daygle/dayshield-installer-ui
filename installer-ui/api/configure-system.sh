@@ -192,6 +192,9 @@ case "${LAN_PREFIX}" in
   ''|*[!0-9]*) json_err "invalid lan_prefix" ;;
 esac
 [ "${LAN_PREFIX}" -ge 0 ] 2>/dev/null && [ "${LAN_PREFIX}" -le 32 ] 2>/dev/null || json_err "lan_prefix out of range"
+# Normalise: strip any leading zeros so the case-based prefix_to_netmask lookup
+# gets a bare decimal integer (e.g. "024" → "24").
+LAN_PREFIX=$(printf '%d' "${LAN_PREFIX}")
 
 # Normalise dhcp flag
 case "${LAN_DHCP}" in
