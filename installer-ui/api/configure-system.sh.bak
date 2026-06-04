@@ -51,7 +51,7 @@ trim_ws() {
 validate_ipv4() {
   _ip="$1"
   case "$_ip" in
-    ''|*[!0-9.]*|.*|*.) return 1 ;;
+    ''|*[!0-9.]*|.*|*.) retun 1 ;;
   esac
   IFS='.' read -r _o1 _o2 _o3 _o4 << EOF
 $_ip
@@ -59,10 +59,10 @@ EOF
   for _octet in "$_o1" "$_o2" "$_o3" "$_o4"; do
     case "$_octet" in
       0|[1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]) ;;
-      *) return 1 ;;
+      *) retun 1 ;;
     esac
   done
-  return 0
+  retun 0
 }
 
 json_err() {
@@ -75,6 +75,8 @@ json_err() {
 # Support both GET query parameters and POST bodies for CGI scripts.
 POST_BODY=""
 if [ "${REQUEST_METHOD:-GET}" = "POST" ] && [ -n "${CONTENT_LENGTH:-}" ]; then
+  # Read the raw request body from stdin, which busybox httpd passes for POST.
+  # Use dd for portability in minimal environments.
   POST_BODY=$(dd bs=1 count="${CONTENT_LENGTH}" 2>/dev/null || true)
 fi
 QS="${QUERY_STRING:-}"
@@ -212,7 +214,7 @@ chmod 644 "${INTERFACES_FILE}"
 # the permission window that would otherwise exist between creation and
 # a subsequent chmod call.
 #
-# Note: wg-quick / the kernel interface *requires* that the config file
+# Note: wg-quick / the kenel interface *requires* that the config file
 # be owned by root and not world-readable.  The wireguard-tools package
 # ships a systemd-path unit that refuses to load configs with permissions
 # looser than 0600, so we must not rely on a separate chmod.
@@ -340,7 +342,7 @@ SSHD_DROP_IN="${SSHD_DROP_IN_DIR}/99-dayshield-hardening.conf"
 printf '# dayshield installer hardening - do not edit manually\n# dayshield-core will manage this file after first boot\nPermitRootLogin prohibit-password\nPasswordAuthentication no\nPermitEmptyPasswords no\nChallengeResponseAuthentication no\nX11Forwarding no\nAllowTcpForwarding no\nMaxAuthTries 4\nLoginGraceTime 30\n' > "${SSHD_DROP_IN}"
 chmod 644 "${SSHD_DROP_IN}"
 
-# ── 9. Kernel hardening (sysctl) ─────────────────────────────
+# ── 9. Kenel hardening (sysctl) ─────────────────────────────
 # Write sysctl tunables to a drop-in file.  These are applied on first boot
 # by the sysctl service (which reads /etc/sysctl.d/*.conf).
 #
@@ -358,13 +360,13 @@ chmod 644 "${SSHD_DROP_IN}"
 #   net.ipv4.tcp_syncookies=1               – SYN flood protection
 #   net.ipv4.icmp_echo_ignore_broadcasts=1  – ignore broadcast pings (smurf)
 #   net.ipv4.conf.all.log_martians=1        – log packets with impossible addrs
-#   kernel.randomize_va_space=2             – full ASLR
-#   kernel.dmesg_restrict=1                 – restrict dmesg to root
+#   kenel.randomize_va_space=2             – full ASLR
+#   kenel.dmesg_restrict=1                 – restrict dmesg to root
 #   fs.protected_hardlinks=1               – prevent hardlink attacks
 #   fs.protected_symlinks=1                – prevent symlink attacks
 SYSCTL_DROP_IN="${TARGET}/etc/sysctl.d/99-dayshield-hardening.conf"
 mkdir -p "${TARGET}/etc/sysctl.d"
-printf '# dayshield installer - kernel hardening\nnet.ipv4.conf.all.rp_filter = 1\nnet.ipv4.conf.default.rp_filter = 1\nnet.ipv4.conf.all.accept_source_route = 0\nnet.ipv4.conf.default.accept_source_route = 0\nnet.ipv4.conf.all.accept_redirects = 0\nnet.ipv4.conf.default.accept_redirects = 0\nnet.ipv6.conf.all.accept_redirects = 0\nnet.ipv6.conf.default.accept_redirects = 0\nnet.ipv4.conf.all.send_redirects = 0\nnet.ipv4.conf.default.send_redirects = 0\nnet.ipv4.tcp_syncookies = 1\nnet.ipv4.icmp_echo_ignore_broadcasts = 1\nnet.ipv4.conf.all.log_martians = 1\nkernel.randomize_va_space = 2\nkernel.dmesg_restrict = 1\nfs.protected_hardlinks = 1\nfs.protected_symlinks = 1\n' > "${SYSCTL_DROP_IN}"
+printf '# dayshield installer - kenel hardening\nnet.ipv4.conf.all.rp_filter = 1\nnet.ipv4.conf.default.rp_filter = 1\nnet.ipv4.conf.all.accept_source_route = 0\nnet.ipv4.conf.default.accept_source_route = 0\nnet.ipv4.conf.all.accept_redirects = 0\nnet.ipv4.conf.default.accept_redirects = 0\nnet.ipv6.conf.all.accept_redirects = 0\nnet.ipv6.conf.default.accept_redirects = 0\nnet.ipv4.conf.all.send_redirects = 0\nnet.ipv4.conf.default.send_redirects = 0\nnet.ipv4.tcp_syncookies = 1\nnet.ipv4.icmp_echo_ignore_broadcasts = 1\nnet.ipv4.conf.all.log_martians = 1\nkenel.randomize_va_space = 2\nkenel.dmesg_restrict = 1\nfs.protected_hardlinks = 1\nfs.protected_symlinks = 1\n' > "${SYSCTL_DROP_IN}"
 chmod 644 "${SYSCTL_DROP_IN}"
 
 # ── 10. Unattended-upgrades (security updates) ───────────────
@@ -378,7 +380,7 @@ chmod 644 "${SYSCTL_DROP_IN}"
 # the risk of an unattended upgrade breaking a production appliance.
 UA_DIR="${TARGET}/etc/apt/apt.conf.d"
 mkdir -p "${UA_DIR}"
-printf '// dayshield installer - unattended security updates\nUnattended-Upgrade::Origins-Pattern {\n    "origin=Debian,codename=${distro_codename},label=Debian-Security";\n};\nUnattended-Upgrade::Package-Blacklist {};\nUnattended-Upgrade::AutoFixInterruptedDpkg "true";\nUnattended-Upgrade::MinimalSteps "true";\nUnattended-Upgrade::InstallOnShutdown "false";\nUnattended-Upgrade::Remove-Unused-Kernel-Packages "true";\nUnattended-Upgrade::Remove-New-Unused-Dependencies "true";\nUnattended-Upgrade::Automatic-Reboot "false";\n' > "${UA_DIR}/51-dayshield-unattended-upgrades"
+printf '// dayshield installer - unattended security updates\nUnattended-Upgrade::Origins-Patten {\n    "origin=Debian,codename=${distro_codename},label=Debian-Security";\n};\nUnattended-Upgrade::Package-Blacklist {};\nUnattended-Upgrade::AutoFixInterruptedDpkg "true";\nUnattended-Upgrade::MinimalSteps "true";\nUnattended-Upgrade::InstallOnShutdown "false";\nUnattended-Upgrade::Remove-Unused-Kenel-Packages "true";\nUnattended-Upgrade::Remove-New-Unused-Dependencies "true";\nUnattended-Upgrade::Automatic-Reboot "false";\n' > "${UA_DIR}/51-dayshield-unattended-upgrades"
 chmod 644 "${UA_DIR}/51-dayshield-unattended-upgrades"
 
 # Enable the periodic apt updates that drive unattended-upgrades.
@@ -390,7 +392,7 @@ chmod 644 "${UA_DIR}/20auto-upgrades"
 # ── Done ─────────────────────────────────────────────────────
 DAYSHIELD_SVC_WARNING=""
 
-# Collect warnings for services that could not be enabled/disabled.
+# Collect wanings for services that could not be enabled/disabled.
 # (Currently informational only; we do not fail the install for this.)
 for _svc in ${WANTED_SERVICES}; do
   if ! chroot "${TARGET}" systemctl is-enabled "${_svc}" >/dev/null 2>&1; then
@@ -400,8 +402,7 @@ done
 
 if [ -n "${DAYSHIELD_SVC_WARNING}" ]; then
   WARN_JSON=$(printf '%s' "${DAYSHIELD_SVC_WARNING}" | sed 's/\\/\\\\/g; s/"/\\"/g')
-  printf '{"ok":true,"warning":"%s"}\n' "${WARN_JSON}"
+  printf '{"ok":true,"waning":"%s"}\n' "${WARN_JSON}"
 else
   printf '{"ok":true}\n'
 fi
-
