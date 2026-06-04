@@ -8,6 +8,12 @@
 #   lan_ip=<address>        (e.g. 192.168.1.1)
 #   lan_prefix=<prefix>     (e.g. 24)
 #   lan_dhcp_enable=<yes|no> (e.g. yes)
+#   dhcp_start=<address>    (required when lan_dhcp_enable=yes)
+#   dhcp_end=<address>      (required when lan_dhcp_enable=yes)
+#   wan_iface=<name>        (e.g. eth1)
+#   wan_type=<dhcp|pppoe>   (e.g. dhcp)
+#   wan_pppoe_user=<user>   (required for pppoe)
+#   wan_pppoe_pass=<pass>   (required for pppoe)
 # Output: JSON  { "ok": true } | { "error": "message" }
 #
 # Assumes /mnt/target is mounted (install-rootfs + install-bootloader done).
@@ -132,6 +138,12 @@ IFACE=$(parse_param   "${QS}" iface)
 LAN_IP=$(parse_param  "${QS}" lan_ip)
 LAN_PREFIX=$(parse_param "${QS}" lan_prefix)
 LAN_DHCP=$(parse_param "${QS}" lan_dhcp_enable)
+WAN_IFACE=$(parse_param "${QS}" wan_iface)
+WAN_TYPE=$(parse_param "${QS}" wan_type)
+WAN_PPPOE_USER=$(parse_param "${QS}" wan_pppoe_user)
+WAN_PPPOE_PASS=$(parse_param "${QS}" wan_pppoe_pass)
+DHCP_START=$(parse_param "${QS}" dhcp_start)
+DHCP_END=$(parse_param "${QS}" dhcp_end)
 
 # Trim whitespace
 DISK=$(trim_ws "${DISK}")
@@ -141,6 +153,12 @@ IFACE=$(trim_ws "${IFACE}")
 LAN_IP=$(trim_ws "${LAN_IP}")
 LAN_PREFIX=$(trim_ws "${LAN_PREFIX}")
 LAN_DHCP=$(trim_ws "${LAN_DHCP}")
+WAN_IFACE=$(trim_ws "${WAN_IFACE}")
+WAN_TYPE=$(trim_ws "${WAN_TYPE}")
+WAN_PPPOE_USER=$(trim_ws "${WAN_PPPOE_USER}")
+WAN_PPPOE_PASS=$(trim_ws "${WAN_PPPOE_PASS}")
+DHCP_START=$(trim_ws "${DHCP_START}")
+DHCP_END=$(trim_ws "${DHCP_END}")
 
 # Required fields
 [ -z "${DISK}" ]       && json_err "disk is required"
@@ -180,6 +198,34 @@ case "${LAN_DHCP}" in
   yes|Yes|YES|1|true|True|TRUE) LAN_DHCP=yes ;;
   *) LAN_DHCP=no ;;
 esac
+
+# Normalize WAN type
+case "${WAN_TYPE}" in
+  ''|dhcp|DHCP|Dhcp) WAN_TYPE=dhcp ;;
+  pppoe|PPPoE|Pppoe) WAN_TYPE=pppoe ;;
+  *) json_err "invalid wan_type" ;;
+esac
+
+if [ -z "${WAN_IFACE}" ]; then
+  json_err "wan_iface is required"
+fi
+case "${WAN_IFACE}" in
+  ''|*[!a-zA-Z0-9_-]*) json_err "invalid wan_iface" ;;
+esac
+
+if [ "${WAN_TYPE}" = "pppoe" ]; then
+  [ -n "${WAN_PPPOE_USER}" ] || json_err "wan_pppoe_user is required for pppoe"
+  [ -n "${WAN_PPPOE_PASS}" ] || json_err "wan_pppoe_pass is required for pppoe"
+fi
+
+if [ "${LAN_DHCP}" = 'yes' ]; then
+  [ -n "${DHCP_START}" ] || json_err "dhcp_start is required when lan_dhcp_enable is yes"
+  [ -n "${DHCP_END}" ] || json_err "dhcp_end is required when lan_dhcp_enable is yes"
+  validate_ipv4 "${DHCP_START}" || json_err "invalid dhcp_start"
+  validate_ipv4 "${DHCP_END}" || json_err "invalid dhcp_end"
+elif [ -n "${DHCP_START}" ] || [ -n "${DHCP_END}" ]; then
+  json_err "dhcp_start and dhcp_end must both be provided or both empty"
+fi
 
 TARGET="/mnt/target"
 [ -d "${TARGET}" ] || json_err "${TARGET} is not mounted"
@@ -245,6 +291,19 @@ else
   printf '    netmask %s\n' "${LAN_NETMASK}" >> "${INTERFACES_FILE}"
 fi
 chmod 644 "${INTERFACES_FILE}"
+
+# ── 3a. DayShield installed runtime finalization ─────────────
+SHARED_FINALIZER="${TARGET}/usr/local/lib/dayshield/installer-finalize.sh"
+if [ -x "${SHARED_FINALIZER}" ]; then
+  if ! chroot "${TARGET}" /usr/local/lib/dayshield/installer-finalize.sh \
+      "${TARGET}" "${HOSTNAME}" "${PASSWORD}" "${WAN_IFACE}" "${WAN_TYPE}" \
+      "${WAN_PPPOE_USER}" "${WAN_PPPOE_PASS}" "${IFACE}" "${LAN_IP}" \
+      "${LAN_PREFIX}" "${DHCP_START}" "${DHCP_END}" >/dev/null 2>&1; then
+    json_err "installer runtime finalization failed"
+  fi
+else
+  json_err "target post-install finalizer is missing"
+fi
 
 # ── 4. WireGuard placeholder ─────────────────────────────────
 # Create the WireGuard config directory and a placeholder wg0.conf.
