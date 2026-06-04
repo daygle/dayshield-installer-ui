@@ -255,12 +255,26 @@ chmod 644 "${INTERFACES_FILE}"
 # Kea DHCP config, the DayShield config.json, and performs validation.
 SHARED_FINALIZER="${TARGET}/usr/local/lib/dayshield/installer-finalize.sh"
 if [ -x "${SHARED_FINALIZER}" ]; then
+  # Capture the finalizer's stderr so a failing check reports *which* check
+  # failed instead of a generic message. The finalizer emits one "[ERR] ..."
+  # line on the failure path; surface that (and a copy in the installer log)
+  # rather than discarding all diagnostics with 2>/dev/null.
+  _fin_errlog="$(mktemp 2>/dev/null || printf '/tmp/ds-finalize.%s.err' "$$")"
   if ! "${SHARED_FINALIZER}" \
       "${TARGET}" "${HOSTNAME}" "${PASSWORD}" "${WAN_IFACE}" "${WAN_TYPE}" \
       "${WAN_PPPOE_USER}" "${WAN_PPPOE_PASS}" "${IFACE}" "${LAN_IP}" \
-      "${LAN_PREFIX}" "${DHCP_START}" "${DHCP_END}" >/dev/null 2>&1; then
-    json_err "installer runtime finalization failed"
+      "${LAN_PREFIX}" "${DHCP_START}" "${DHCP_END}" >/dev/null 2>"${_fin_errlog}"; then
+    # Prefer the last "[ERR]" diagnostic; fall back to the last non-empty line.
+    _fin_detail=$(grep '\[ERR\]' "${_fin_errlog}" 2>/dev/null | tail -n1 | sed 's/^[[:space:]]*\[ERR\][[:space:]]*//')
+    [ -n "${_fin_detail}" ] || _fin_detail=$(grep -v '^[[:space:]]*$' "${_fin_errlog}" 2>/dev/null | tail -n1)
+    rm -f "${_fin_errlog}" 2>/dev/null || true
+    if [ -n "${_fin_detail}" ]; then
+      json_err "installer runtime finalization failed: ${_fin_detail}"
+    else
+      json_err "installer runtime finalization failed"
+    fi
   fi
+  rm -f "${_fin_errlog}" 2>/dev/null || true
 else
   json_err "target post-install finalizer is missing"
 fi
